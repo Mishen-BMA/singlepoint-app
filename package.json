@@ -1,0 +1,24 @@
+{
+  "name": "singlepoint-app",
+  "version": "1.0.0",
+  "description": "Security policy awareness &amp; compliance web app built for Sallelanka Solutions (Pvt) Ltd - replaces shared credentials with individual logins, tracks policy acknowledgement, delivers targeted security training, and gives management a compliance dashboard. IE3072 group project, SLIIT.",
+  "main": "index.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Mishen-BMA/singlepoint-app.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/Mishen-BMA/singlepoint-app/issues"
+  },
+  "homepage": "https://github.com/Mishen-BMA/singlepoint-app#readme",
+  "dependencies": {
+    "express": "^5.2.1"
+  }
+}
