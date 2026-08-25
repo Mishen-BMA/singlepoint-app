@@ -1,12 +1,16 @@
+require('./models/policyModel');
+const policyRoutes = require('./routes/policyRoutes');
 const express = require('express');
-
 const app = express();
-const port = process.env.PORT || 3000;
 
-app.get('/', (request, response) => {
-	response.send('Singlepoint server is running');
+app.use(express.json()); // lets our server understand JSON sent from the frontend
+app.use('/api', policyRoutes);
+
+app.get('/', (req, res) => {
+  res.send('SinglePoint API is running');
 });
 
-app.listen(port, () => {
-	console.log(`Singlepoint server listening on http://localhost:${port}`);
+const PORT = 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
 });
