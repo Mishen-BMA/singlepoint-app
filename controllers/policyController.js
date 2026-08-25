@@ -97,7 +97,7 @@ function getComplianceStatus(req, res) {
   const { policyId, userId } = req.params;
 
   const sql = `
-    SELECT p.version AS current_version, a.acknowledged_at
+    SELECT p.version AS current_version, a.version_acknowledged, a.acknowledged_at
     FROM policies p
     LEFT JOIN acknowledgements a
       ON a.policy_id = p.id AND a.user_id = ?
@@ -109,9 +109,48 @@ function getComplianceStatus(req, res) {
     if (err) return res.status(500).json({ error: 'Failed to check compliance' });
     if (!row) return res.status(404).json({ error: 'Policy not found' });
 
-    const compliant = !!row.acknowledged_at; // simplified for now — see note below
-    res.json({ policyId, userId, currentVersion: row.current_version, compliant });
+    const compliant = row.version_acknowledged === row.current_version;
+    res.json({
+      policyId,
+      userId,
+      currentVersion: row.current_version,
+      versionAcknowledged: row.version_acknowledged || null,
+      compliant
+    });
   });
 }
 
-module.exports = { createPolicy, getAllPolicies, acknowledgePolicy, getAcknowledgementsForPolicy, updatePolicy };
+function acknowledgePolicy(req, res) {
+  const { policy_id, user_id } = req.body;
+
+  if (!policy_id || !user_id) {
+    return res.status(400).json({ error: 'policy_id and user_id are required' });
+  }
+
+  // First, find out what version this policy is currently on
+  db.get(`SELECT version FROM policies WHERE id = ?`, [policy_id], (err, policy) => {
+    if (err) return res.status(500).json({ error: 'Failed to look up policy' });
+    if (!policy) return res.status(404).json({ error: 'Policy not found' });
+
+    const sql = `INSERT INTO acknowledgements (policy_id, user_id, version_acknowledged) VALUES (?, ?, ?)`;
+    db.run(sql, [policy_id, user_id, policy.version], function (err) {
+      if (err) return res.status(500).json({ error: 'Failed to record acknowledgement' });
+      res.status(201).json({
+        id: this.lastID,
+        policy_id,
+        user_id,
+        version_acknowledged: policy.version,
+        acknowledged_at: new Date().toISOString()
+      });
+    });
+  });
+}
+
+module.exports = {
+  createPolicy,
+  getAllPolicies,
+  acknowledgePolicy,
+  getAcknowledgementsForPolicy,
+  updatePolicy,
+  getComplianceStatus
+};

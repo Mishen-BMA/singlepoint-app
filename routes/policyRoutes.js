@@ -4,7 +4,9 @@ const {
   createPolicy,
   getAllPolicies,
   acknowledgePolicy,
-  getAcknowledgementsForPolicy
+  getAcknowledgementsForPolicy,
+  updatePolicy,
+  getComplianceStatus
 } = require('../controllers/policyController');
 
 router.post('/policies', createPolicy);
