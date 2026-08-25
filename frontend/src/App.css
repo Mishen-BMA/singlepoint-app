@@ -1,0 +1,167 @@
+@import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Inter:wght@400;500;600&display=swap');
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: #0d1425;
+  color: #e5e9f0;
+  font-family: 'Inter', sans-serif;
+}
+
+.app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.sidebar {
+  width: 220px;
+  background: #10182c;
+  border-right: 1px solid #1e2740;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 32px;
+}
+
+.brand-icon {
+  width: 34px;
+  height: 34px;
+  background: #e0166f;
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  color: white;
+}
+
+.brand-text h2 {
+  font-family: 'Rajdhani', sans-serif;
+  margin: 0;
+  font-size: 18px;
+}
+
+.brand-text span {
+  font-size: 11px;
+  color: #6b7690;
+  letter-spacing: 0.05em;
+}
+
+.nav-item {
+  padding: 10px 12px;
+  border-radius: 8px;
+  margin-bottom: 4px;
+  color: #a0a8bd;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.nav-item.active {
+  background: rgba(224, 22, 111, 0.15);
+  color: #ff4f9a;
+  font-weight: 600;
+}
+
+.main {
+  flex: 1;
+  padding: 40px 48px;
+}
+
+.main h1 {
+  font-family: 'Rajdhani', sans-serif;
+  font-size: 30px;
+  margin: 0 0 6px 0;
+}
+
+.main p.subtitle {
+  color: #8992aa;
+  margin: 0 0 28px 0;
+  font-size: 14px;
+}
+
+.policy-card {
+  background: #10182c;
+  border: 1px solid #1e2740;
+  border-radius: 10px;
+  padding: 18px 20px;
+  margin-bottom: 14px;
+}
+
+.policy-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+}
+
+.policy-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.policy-title-row strong {
+  font-size: 16px;
+}
+
+.badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 3px 8px;
+  border-radius: 5px;
+}
+
+.badge-mandatory {
+  background: rgba(224, 22, 111, 0.15);
+  color: #ff4f9a;
+}
+
+.badge-pending {
+  background: rgba(255, 170, 0, 0.12);
+  color: #ffb020;
+}
+
+.badge-done {
+  background: rgba(29, 158, 117, 0.15);
+  color: #35d68f;
+}
+
+.policy-meta {
+  font-size: 12px;
+  color: #6b7690;
+  margin-top: 2px;
+}
+
+.policy-body {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid #1e2740;
+  font-size: 14px;
+  color: #c1c7d6;
+  line-height: 1.6;
+}
+
+.btn-primary {
+  background: #e0166f;
+  color: white;
+  border: none;
+  padding: 10px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  margin-top: 14px;
+}
+
+.btn-primary:hover {
+  background: #c9105f;
+}

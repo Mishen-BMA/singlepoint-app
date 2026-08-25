@@ -1,4 +1,4 @@
-const db = require('./db');
+const db = require('../../models/db');
 
 // Run once at startup to make sure our tables exist
 db.serialize(() => {

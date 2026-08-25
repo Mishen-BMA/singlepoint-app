@@ -1,4 +1,4 @@
-const db = require('../models/db');
+const db = require('../../models/db');
 
 // Create a new policy
 function createPolicy(req, res) {
