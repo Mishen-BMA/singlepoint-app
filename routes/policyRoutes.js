@@ -6,7 +6,8 @@ const {
   acknowledgePolicy,
   getAcknowledgementsForPolicy,
   updatePolicy,
-  getComplianceStatus
+  getComplianceStatus,
+  getUserComplianceOverview
 } = require('../controllers/policyController');
 
 router.post('/policies', createPolicy);
@@ -15,5 +16,6 @@ router.post('/policies/acknowledge', acknowledgePolicy);
 router.get('/policies/:id/acknowledgements', getAcknowledgementsForPolicy);
 router.put('/policies/:id', updatePolicy);
 router.get('/compliance/:policyId/:userId', getComplianceStatus);
+router.get('/compliance/:userId', getUserComplianceOverview);
 
 module.exports = router;

@@ -32,28 +32,6 @@ function getAllPolicies(req, res) {
   });
 }
 
-// Staff member acknowledges a policy
-function acknowledgePolicy(req, res) {
-  const { policy_id, user_id } = req.body;
-
-  if (!policy_id || !user_id) {
-    return res.status(400).json({ error: 'policy_id and user_id are required' });
-  }
-
-  const sql = `INSERT INTO acknowledgements (policy_id, user_id) VALUES (?, ?)`;
-  db.run(sql, [policy_id, user_id], function (err) {
-    if (err) {
-      return res.status(500).json({ error: 'Failed to record acknowledgement' });
-    }
-    res.status(201).json({
-      id: this.lastID,
-      policy_id,
-      user_id,
-      acknowledged_at: new Date().toISOString()
-    });
-  });
-}
-
 // See who has acknowledged a specific policy (Admin view)
 function getAcknowledgementsForPolicy(req, res) {
   const { id } = req.params;
@@ -146,11 +124,49 @@ function acknowledgePolicy(req, res) {
   });
 }
 
+// Get every policy with this user's compliance status on each one
+function getUserComplianceOverview(req, res) {
+  const { userId } = req.params;
+
+  const sql = `
+    SELECT
+      p.id AS policy_id,
+      p.title,
+      p.version AS current_version,
+      a.version_acknowledged,
+      a.acknowledged_at
+    FROM policies p
+    LEFT JOIN (
+      SELECT policy_id, version_acknowledged, acknowledged_at
+      FROM acknowledgements
+      WHERE user_id = ?
+      GROUP BY policy_id
+      HAVING acknowledged_at = MAX(acknowledged_at)
+    ) a ON a.policy_id = p.id
+    ORDER BY p.id
+  `;
+
+  db.all(sql, [userId], (err, rows) => {
+    if (err) return res.status(500).json({ error: 'Failed to fetch compliance overview' });
+
+    const result = rows.map(row => ({
+      policyId: row.policy_id,
+      title: row.title,
+      currentVersion: row.current_version,
+      versionAcknowledged: row.version_acknowledged || null,
+      compliant: row.version_acknowledged === row.current_version
+    }));
+
+    res.json({ userId, policies: result });
+  });
+}
+
 module.exports = {
   createPolicy,
   getAllPolicies,
   acknowledgePolicy,
   getAcknowledgementsForPolicy,
   updatePolicy,
-  getComplianceStatus
+  getComplianceStatus,
+  getUserComplianceOverview
 };
