@@ -1,3 +1,4 @@
+require('./models/policyModel');
 const express = require('express');
 const app = express();
 
