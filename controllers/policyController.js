@@ -32,4 +32,39 @@ function getAllPolicies(req, res) {
   });
 }
 
-module.exports = { createPolicy, getAllPolicies };
+// Staff member acknowledges a policy
+function acknowledgePolicy(req, res) {
+  const { policy_id, user_id } = req.body;
+
+  if (!policy_id || !user_id) {
+    return res.status(400).json({ error: 'policy_id and user_id are required' });
+  }
+
+  const sql = `INSERT INTO acknowledgements (policy_id, user_id) VALUES (?, ?)`;
+  db.run(sql, [policy_id, user_id], function (err) {
+    if (err) {
+      return res.status(500).json({ error: 'Failed to record acknowledgement' });
+    }
+    res.status(201).json({
+      id: this.lastID,
+      policy_id,
+      user_id,
+      acknowledged_at: new Date().toISOString()
+    });
+  });
+}
+
+// See who has acknowledged a specific policy (Admin view)
+function getAcknowledgementsForPolicy(req, res) {
+  const { id } = req.params;
+
+  const sql = `SELECT * FROM acknowledgements WHERE policy_id = ?`;
+  db.all(sql, [id], (err, rows) => {
+    if (err) {
+      return res.status(500).json({ error: 'Failed to fetch acknowledgements' });
+    }
+    res.json(rows);
+  });
+}
+
+module.exports = { createPolicy, getAllPolicies, acknowledgePolicy, getAcknowledgementsForPolicy };
