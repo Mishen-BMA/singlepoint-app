@@ -165,3 +165,98 @@ body {
 .btn-primary:hover {
   background: #c9105f;
 }
+
+.demo-role-switcher {
+  border-top: 1px solid #1e2740;
+  margin-top: 28px;
+  padding-top: 18px;
+}
+
+.demo-role-switcher span,
+.eyebrow {
+  display: block;
+  color: #6b7690;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  margin-bottom: 8px;
+}
+
+.demo-role-switcher button,
+.btn-secondary,
+.link-button {
+  background: transparent;
+  border: 1px solid #2b3755;
+  border-radius: 6px;
+  color: #a0a8bd;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 8px 10px;
+}
+
+.demo-role-switcher button + button { margin-left: 6px; }
+.demo-role-switcher button.selected { background: #e0166f; border-color: #e0166f; color: white; }
+
+.admin-policy-layout { display: grid; gap: 28px; max-width: 900px; }
+.policy-panel { background: #10182c; border: 1px solid #1e2740; border-radius: 10px; padding: 22px; }
+.section-heading { align-items: flex-start; display: flex; justify-content: space-between; gap: 16px; margin-bottom: 18px; }
+.section-heading h2 { font-family: 'Rajdhani', sans-serif; font-size: 22px; margin: 0; }
+.count-label { color: #8992aa; font-size: 12px; }
+.policy-form { display: grid; gap: 16px; }
+.policy-form label { color: #a0a8bd; display: grid; font-size: 12px; font-weight: 600; gap: 7px; }
+.policy-form input, .policy-form textarea { background: #0d1425; border: 1px solid #2b3755; border-radius: 6px; color: #e5e9f0; font: inherit; padding: 11px 12px; resize: vertical; }
+.policy-form input:focus, .policy-form textarea:focus { border-color: #e0166f; outline: none; }
+.btn-secondary { white-space: nowrap; }
+.btn-primary:disabled { cursor: wait; opacity: 0.6; }
+.success-message { color: #35d68f; font-size: 13px; margin: 14px 0 0; }
+.error-message { color: #ff6b83; font-size: 13px; margin: 14px 0 0; }
+.admin-policy-list { display: grid; gap: 14px; }
+.admin-policy-card { margin-bottom: 0; }
+.policy-preview { color: #c1c7d6; font-size: 13px; line-height: 1.55; margin: 16px 0 10px; }
+.link-button { border: 0; color: #ff4f9a; padding: 0; }
+.acknowledgement-list { border-top: 1px solid #1e2740; display: grid; gap: 6px; margin-top: 14px; padding-top: 12px; }
+.acknowledgement-list strong, .acknowledgement-list span { color: #8992aa; font-size: 12px; }
+
+.app-shell { background: #0d1425; color: #e5e9f0; transition: background-color 180ms ease, color 180ms ease; }
+.theme-toggle { background: transparent; border: 0; color: #8992aa; cursor: pointer; font-size: 12px; margin-top: 18px; padding: 4px 0; }
+.theme-toggle:hover { color: #ff4f9a; }
+
+.app-shell.theme-light { background: #f3f5f8; color: #1a2233; }
+.theme-light .sidebar,
+.theme-light .policy-card,
+.theme-light .policy-panel { background: #ffffff; border-color: #d9dee8; }
+.theme-light .sidebar { border-right-color: #d9dee8; }
+.theme-light .brand-text span,
+.theme-light .policy-meta,
+.theme-light .demo-role-switcher span,
+.theme-light .eyebrow { color: #718096; }
+.theme-light .nav-item,
+.theme-light .demo-role-switcher button,
+.theme-light .btn-secondary { color: #59657a; }
+.theme-light .nav-item.active { background: rgba(193, 11, 95, 0.1); color: #c10b5f; }
+.theme-light .main p.subtitle,
+.theme-light .count-label,
+.theme-light .policy-body,
+.theme-light .policy-preview,
+.theme-light .acknowledgement-list strong,
+.theme-light .acknowledgement-list span { color: #59657a; }
+.theme-light .policy-body,
+.theme-light .acknowledgement-list,
+.theme-light .demo-role-switcher { border-color: #d9dee8; }
+.theme-light .policy-form label { color: #59657a; }
+.theme-light .policy-form input,
+.theme-light .policy-form textarea { background: #f7f8fb; border-color: #d9dee8; color: #1a2233; }
+.theme-light .policy-form input:focus,
+.theme-light .policy-form textarea:focus { border-color: #c10b5f; }
+.theme-light .demo-role-switcher button,
+.theme-light .btn-secondary { border-color: #d9dee8; }
+.theme-light .link-button { color: #c10b5f; }
+
+@media (max-width: 760px) {
+  .app-shell { display: block; }
+  .sidebar { width: 100%; padding: 16px; }
+  .brand { margin-bottom: 16px; }
+  .main { padding: 28px 18px; }
+  .policy-card-header, .section-heading { align-items: flex-start; }
+  .policy-title-row { align-items: flex-start; flex-direction: column; gap: 6px; }
+}

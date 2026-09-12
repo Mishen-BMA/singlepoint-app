@@ -1,10 +1,40 @@
-const sqlite3 = require('sqlite3').verbose();
-const db = new sqlite3.Database('./singlepoint.db', (err) => {
-  if (err) {
-    console.error('Failed to connect to database:', err.message);
-  } else {
-    console.log('Connected to SQLite database');
-  }
+require('dotenv').config();
+const { Pool } = require('pg');
+
+const connectionString = process.env.DATABASE_URL;
+
+if (!connectionString) {
+  throw new Error('DATABASE_URL is not configured');
+}
+
+const connectionParts = connectionString.match(
+  /^postgresql:\/\/([^:]+):(.+)@([^:/]+):(\d+)\/([^?]+)$/
+);
+
+if (!connectionParts) {
+  throw new Error('DATABASE_URL has an invalid PostgreSQL format');
+}
+
+const [, user, rawPassword, host, port, database] = connectionParts;
+let password;
+
+try {
+  password = decodeURIComponent(rawPassword);
+} catch (error) {
+  password = rawPassword;
+}
+
+const pool = new Pool({
+  user,
+  password,
+  host,
+  port: Number(port),
+  database,
+  ssl: { rejectUnauthorized: false }
 });
 
-module.exports = db;
+pool.on('error', (error) => {
+  console.error('Unexpected PostgreSQL pool error:', error.message);
+});
+
+module.exports = pool;

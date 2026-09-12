@@ -31,7 +31,7 @@ Update a policy's title/content. Automatically increments its `version` — this
 ### `POST /api/policies/acknowledge`
 A staff member marks a policy as read. Records which **version** they acknowledged, based on the policy's current version at that exact moment.
 
-**Body:** `{ "policy_id": number, "user_id": number }`
+**Body:** `{ "policy_id": number }` — the authenticated user's ID is taken from `req.user`, not the request body.
 
 ### `GET /api/policies/:id/acknowledgements` — Admin only
 See every acknowledgement recorded for one specific policy.

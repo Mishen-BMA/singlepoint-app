@@ -1,6 +1,6 @@
-require('./policy management - mishen/models/policyModel');
 const cors = require('cors');
 const policyRoutes = require('./policy management - mishen/routes/policyRoutes');
+const { initializePolicyTables } = require('./policy management - mishen/models/policyModel');
 const express = require('express');
 const app = express();
 
@@ -12,7 +12,15 @@ app.get('/', (req, res) => {
   res.send('SinglePoint API is running');
 });
 
-const PORT = 4000;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+const PORT = process.env.PORT || 4000;
+
+initializePolicyTables()
+  .then(() => {
+    app.listen(PORT, () => {
+      console.log(`Server running on http://localhost:${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error('Failed to initialize policy tables:', error.message);
+    process.exit(1);
+  });
