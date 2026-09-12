@@ -9,7 +9,12 @@ function requireUser(req, res, next) {
     return res.status(401).json({ error: 'Missing user identity (x-user-id / x-user-role headers)' });
   }
 
-  req.user = { id: Number(userId), role };
+  const numericUserId = Number(userId);
+  if (!Number.isInteger(numericUserId) || numericUserId < 1) {
+    return res.status(401).json({ error: 'Invalid user identity' });
+  }
+
+  req.user = { id: numericUserId, role };
   next();
 }
 

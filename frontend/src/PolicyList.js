@@ -1,24 +1,19 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 
-const CURRENT_USER = { id: 5, role: 'staff' };
 const API_BASE = 'http://localhost:4000/api';
 
-function PolicyList() {
+function PolicyList({ currentUser }) {
   const [policies, setPolicies] = useState([]);
   const [expandedId, setExpandedId] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    fetchCompliance();
-  }, []);
-
-  function fetchCompliance() {
+  const fetchCompliance = useCallback(() => {
     setLoading(true);
-    fetch(`${API_BASE}/compliance/${CURRENT_USER.id}`, {
+    fetch(`${API_BASE}/compliance/${currentUser.id}`, {
       headers: {
-        'x-user-id': CURRENT_USER.id,
-        'x-user-role': CURRENT_USER.role
+        'x-user-id': currentUser.id,
+        'x-user-role': currentUser.role
       }
     })
       .then(res => res.json())
@@ -30,17 +25,21 @@ function PolicyList() {
         setError('Could not load policies. Is the backend running?');
         setLoading(false);
       });
-  }
+  }, [currentUser.id, currentUser.role]);
+
+  useEffect(() => {
+    fetchCompliance();
+  }, [fetchCompliance]);
 
   function handleAcknowledge(policyId) {
     fetch(`${API_BASE}/policies/acknowledge`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-user-id': CURRENT_USER.id,
-        'x-user-role': CURRENT_USER.role
+        'x-user-id': currentUser.id,
+        'x-user-role': currentUser.role
       },
-      body: JSON.stringify({ policy_id: policyId, user_id: CURRENT_USER.id })
+      body: JSON.stringify({ policy_id: policyId })
     })
       .then(res => res.json())
       .then(() => fetchCompliance());
