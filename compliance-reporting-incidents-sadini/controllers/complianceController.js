@@ -4,6 +4,8 @@ const {
   getIncidentsByUser,
   updateIncidentStatus
 } = require('../models/incidentModel');
+const { scopeOf, assertInScope } = require('../../authentication-authorization-charuka/middleware/permissions');
+const { getScopeUserIds } = require('../../authentication-authorization-charuka/models/scopeModel');
 
 const ALLOWED_INCIDENT_TYPES = [
   'Suspicious Client Request',
@@ -89,17 +91,33 @@ async function submitIncident(req, res) {
 async function getIncidents(req, res) {
   try {
     const { user_id } = req.query;
-    const canViewAll = ['admin', 'manager'].includes(req.user.role);
-    if (user_id && !canViewAll && String(user_id) !== String(req.user.id)) {
-      return res.status(403).json({ message: 'You can only view your own incidents' });
-    }
-    const incidents = canViewAll && !user_id
-      ? await getAllIncidents()
-      : await getIncidentsByUser(user_id || req.user.id);
 
-    return res.status(200).json({
-      incidents
-    });
+    if (user_id && String(user_id) !== String(req.user.id)) {
+      const viewScope = await scopeOf(req.user, 'incidents.view_all');
+      if (!viewScope) {
+        return res.status(403).json({ message: 'You can only view your own incidents' });
+      }
+      req.permissionScope = viewScope;
+      const inScope = await assertInScope(req, res, user_id);
+      if (!inScope) return; // assertInScope already sent the 404
+      const incidents = await getIncidentsByUser(user_id);
+      return res.status(200).json({ incidents });
+    }
+
+    if (!user_id) {
+      const viewScope = await scopeOf(req.user, 'incidents.view_all');
+      if (viewScope) {
+        const allowedIds = await getScopeUserIds(req.user, viewScope);
+        const all = await getAllIncidents();
+        const incidents = allowedIds
+          ? all.filter((incident) => allowedIds.map(String).includes(String(incident.user_id)))
+          : all;
+        return res.status(200).json({ incidents });
+      }
+    }
+
+    const incidents = await getIncidentsByUser(req.user.id);
+    return res.status(200).json({ incidents });
 
   } catch (error) {
     console.error('Get incidents error:', error);

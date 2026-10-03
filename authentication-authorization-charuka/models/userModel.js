@@ -1,5 +1,18 @@
 const db = require('../../models/db');
 
+function normalizeRoleKey(role) {
+  if (typeof role !== 'string') return role;
+  return {
+    staff: 'software_engineer',
+    admin: 'admin',
+    manager: 'manager',
+    ceo: 'ceo',
+    software_engineer: 'software_engineer',
+    hr: 'hr',
+    data_science: 'data_science'
+  }[role] || role;
+}
+
 async function initializeUserTable() {
   await db.query(`
     CREATE TABLE IF NOT EXISTS users (
@@ -7,9 +20,9 @@ async function initializeUserTable() {
       name TEXT NOT NULL,
       email TEXT NOT NULL UNIQUE,
       password_hash TEXT NOT NULL,
-      role VARCHAR(20) NOT NULL DEFAULT 'staff',
+      role VARCHAR(30) NOT NULL DEFAULT 'software_engineer',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-      CONSTRAINT users_role_check CHECK (role IN ('admin', 'manager', 'staff'))
+      CONSTRAINT users_role_check CHECK (role IN ('admin', 'ceo', 'manager', 'software_engineer', 'hr', 'data_science'))
     )
   `);
 
@@ -21,6 +34,9 @@ async function initializeUserTable() {
     );
   if (!columns.rows.some((column) => (column.name || column.column_name) === 'is_active')) {
     await db.query('ALTER TABLE users ADD COLUMN is_active BOOLEAN NOT NULL DEFAULT TRUE');
+  }
+  if (!columns.rows.some((column) => (column.name || column.column_name) === 'reports_to')) {
+    await db.query('ALTER TABLE users ADD COLUMN reports_to BIGINT REFERENCES users(id) ON DELETE SET NULL');
   }
 
   await db.query(`
@@ -44,12 +60,13 @@ async function initializeUserTable() {
   `);
 }
 
-async function createUser({ name, email, passwordHash, role }) {
+async function createUser({ name, email, passwordHash, role, reportsTo = null }) {
+  const normalizedRole = normalizeRoleKey(role);
   const result = await db.query(
-    `INSERT INTO users (name, email, password_hash, role)
-     VALUES ($1, $2, $3, $4)
-    RETURNING id, name, email, role, is_active, created_at`,
-    [name, email, passwordHash, role]
+    `INSERT INTO users (name, email, password_hash, role, reports_to)
+     VALUES ($1, $2, $3, $4, $5)
+    RETURNING id, name, email, role, reports_to, is_active, created_at`,
+    [name, email, passwordHash, normalizedRole, reportsTo]
   );
   return result.rows[0];
 }
@@ -63,7 +80,7 @@ async function findUserByEmail(email) {
 
 async function findUserById(id) {
   const result = await db.query(
-    'SELECT id, name, email, role, is_active, created_at FROM users WHERE id = $1',
+    'SELECT id, name, email, role, reports_to, is_active, created_at FROM users WHERE id = $1',
     [id]
   );
   return result.rows[0] || null;
@@ -71,15 +88,24 @@ async function findUserById(id) {
 
 async function getAllUsers() {
   const result = await db.query(
-    'SELECT id, name, email, role, is_active, created_at FROM users ORDER BY created_at DESC'
+    'SELECT id, name, email, role, reports_to, is_active, created_at FROM users ORDER BY created_at DESC'
   );
   return result.rows;
 }
 
 async function updateUserRole(id, role) {
+  const normalizedRole = normalizeRoleKey(role);
   const result = await db.query(
-    'UPDATE users SET role = $1 WHERE id = $2 RETURNING id, name, email, role, is_active, created_at',
-    [role, id]
+    'UPDATE users SET role = $1 WHERE id = $2 RETURNING id, name, email, role, reports_to, is_active, created_at',
+    [normalizedRole, id]
+  );
+  return result.rows[0] || null;
+}
+
+async function updateUserReportsTo(id, reportsTo) {
+  const result = await db.query(
+    'UPDATE users SET reports_to = $1 WHERE id = $2 RETURNING id, name, email, role, reports_to, is_active, created_at',
+    [reportsTo, id]
   );
   return result.rows[0] || null;
 }
@@ -94,7 +120,7 @@ async function changePassword(id, passwordHash) {
 
 async function setUserActive(id, isActive) {
   const result = await db.query(
-    'UPDATE users SET is_active = $1 WHERE id = $2 RETURNING id, name, email, role, is_active, created_at',
+    'UPDATE users SET is_active = $1 WHERE id = $2 RETURNING id, name, email, role, reports_to, is_active, created_at',
     [isActive, id]
   );
   return result.rows[0] || null;
@@ -164,6 +190,7 @@ module.exports = {
   findUserById,
   getAllUsers,
   updateUserRole,
+  updateUserReportsTo,
   changePassword,
   setUserActive,
   getActiveAdminCount,

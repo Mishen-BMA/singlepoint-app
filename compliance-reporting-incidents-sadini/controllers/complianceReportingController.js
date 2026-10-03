@@ -5,14 +5,33 @@ const {
   getStaffComplianceRows,
   saveComplianceSnapshot
 } = require('../models/complianceModel');
+const { scopeOf } = require('../../authentication-authorization-charuka/middleware/permissions');
+const { getScopeUserIds } = require('../../authentication-authorization-charuka/models/scopeModel');
+
+// Resolve the caller's compliance-overview scope (manager/admin get
+// compliance.view_overview, the CEO gets the read-only
+// compliance.view_executive) and turn it into an allow-list of user ids, or
+// null for "no restriction" (org scope).
+async function resolveAllowedUserIds(user) {
+  const scope = (await scopeOf(user, 'compliance.view_overview')) || (await scopeOf(user, 'compliance.view_executive'));
+  if (!scope) return { scope: null, allowedUserIds: undefined };
+  const allowedUserIds = await getScopeUserIds(user, scope);
+  return { scope, allowedUserIds };
+}
 
 async function getOverview(req, res) {
   try {
-    const staff = await getStaffComplianceRows();
+    const { scope, allowedUserIds } = await resolveAllowedUserIds(req.user);
+    if (!scope) return res.status(403).json({ error: 'You do not have permission to perform this action' });
+    const staff = await getStaffComplianceRows(allowedUserIds);
     const compliancePercentage = staff.length
       ? Math.round(staff.reduce((total, user) => total + user.compliancePercentage, 0) / staff.length)
       : 0;
-    await saveComplianceSnapshot(compliancePercentage);
+    // Only a global, org-wide snapshot is meaningful for the trend chart, so
+    // only persist it when the caller can see the whole org.
+    if (!allowedUserIds) {
+      await saveComplianceSnapshot(compliancePercentage);
+    }
 
     res.json({
       compliancePercentage,
@@ -30,11 +49,8 @@ async function getOverview(req, res) {
 
 async function getTrends(req, res) {
   try {
-    const staff = await getStaffComplianceRows();
-    const compliancePercentage = staff.length
-      ? Math.round(staff.reduce((total, user) => total + user.compliancePercentage, 0) / staff.length)
-      : 0;
-    await saveComplianceSnapshot(compliancePercentage);
+    const { scope } = await resolveAllowedUserIds(req.user);
+    if (!scope) return res.status(403).json({ error: 'You do not have permission to perform this action' });
     res.json(await getComplianceSnapshots());
   } catch (error) {
     console.error('Compliance trend query failed:', error.message);
@@ -44,7 +60,8 @@ async function getTrends(req, res) {
 
 async function exportCsv(req, res) {
   try {
-    const staff = await getStaffComplianceRows();
+    const { allowedUserIds } = await resolveAllowedUserIds(req.user);
+    const staff = await getStaffComplianceRows(allowedUserIds);
     const rows = [
       ['Name', 'Email', 'Role', 'Policies acknowledged', 'Total policies', 'Training completed', 'Total training', 'Pending items', 'Compliance %'],
       ...staff.map((user) => [
@@ -79,6 +96,10 @@ async function sendReminder(req, res) {
   const message = typeof req.body.message === 'string' ? req.body.message.trim() : '';
   if (!Number.isInteger(recipientId) || recipientId < 1 || !message || message.length > 500) {
     return res.status(400).json({ error: 'A valid userId and message (up to 500 characters) are required' });
+  }
+  const allowedUserIds = await getScopeUserIds(req.user, req.permissionScope);
+  if (allowedUserIds && !allowedUserIds.map(String).includes(String(recipientId))) {
+    return res.status(404).json({ error: 'User not found' });
   }
 
   try {

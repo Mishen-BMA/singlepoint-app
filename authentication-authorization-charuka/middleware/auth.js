@@ -72,25 +72,9 @@ async function requireUser(req, res, next) {
   });
 }
 
-function requireAdmin(req, res, next) {
-  if (req.user.role !== 'admin') {
-    return res.status(403).json({ error: 'Admin access required' });
-  }
-  next();
-}
-
-function requireManagerOrAdmin(req, res, next) {
-  if (!['admin', 'manager'].includes(req.user.role)) {
-    return res.status(403).json({ error: 'Manager or Admin access required' });
-  }
-  next();
-}
-
 module.exports = {
   requireSession,
   requireUser,
-  requireAdmin,
-  requireManagerOrAdmin,
   issueToken,
   SESSION_TIMEOUT_SECONDS
 };

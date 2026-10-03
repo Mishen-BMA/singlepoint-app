@@ -20,76 +20,135 @@ async function initializeComplianceTables() {
   `);
 }
 
-async function getStaffComplianceRows() {
-  const result = await db.query(`
-    SELECT u.id, u.name, u.email, u.role, u.created_at,
-      (SELECT COUNT(*) FROM policies) AS total_policies,
-      (SELECT COUNT(*) FROM policies p
-       WHERE EXISTS (
-         SELECT 1 FROM acknowledgements a
-         WHERE a.policy_id = p.id AND a.user_id = u.id
-           AND a.decision = 'agreed' AND a.version_acknowledged = p.version
-           AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = u.id)
-       )) AS acknowledged_policies,
-      (SELECT MIN(p.updated_at) FROM policies p
-       WHERE NOT EXISTS (
-         SELECT 1 FROM acknowledgements a
-         WHERE a.policy_id = p.id AND a.user_id = u.id
-           AND a.decision = 'agreed' AND a.version_acknowledged = p.version
-           AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = u.id)
-       )) AS oldest_pending_policy_at,
-      (SELECT COUNT(*) FROM survey_questions) AS total_survey_questions,
-      (SELECT COUNT(*) FROM survey_responses WHERE user_id = u.id) AS answered_survey_questions,
-      (SELECT MAX(answered_at) FROM survey_responses WHERE user_id = u.id) AS last_survey_at,
-      (1 + (SELECT COUNT(DISTINCT sq.module_id) FROM survey_questions sq
-       JOIN survey_responses sr ON sr.question_id = sq.id
-       WHERE sr.user_id = u.id AND sr.answer = sq.weak_answer)
-       + (SELECT COUNT(DISTINCT m.id) FROM training_modules m
-          WHERE m.target_roles LIKE '%' || u.role || '%'
-            AND NOT EXISTS (
-              SELECT 1 FROM survey_questions sq
-              JOIN survey_responses sr ON sr.question_id = sq.id
-              WHERE sr.user_id = u.id AND sr.answer = sq.weak_answer AND sq.module_id = m.id
-            ))) AS total_training,
-      ((SELECT COUNT(DISTINCT m.id) FROM training_modules m
-       WHERE (m.target_roles LIKE '%' || u.role || '%' OR EXISTS (
-         SELECT 1 FROM survey_responses sr
-         JOIN survey_questions sq ON sq.id = sr.question_id
-         WHERE sr.user_id = u.id AND sr.answer = sq.weak_answer AND sq.module_id = m.id
-       )) AND EXISTS (
-         SELECT 1 FROM quiz_attempts q
-         WHERE q.module_id = m.id AND q.user_id = u.id AND q.passed = TRUE
-       )) + CASE WHEN (SELECT COUNT(*) FROM survey_responses WHERE user_id = u.id)
-           >= (SELECT COUNT(*) FROM survey_questions) AND (SELECT COUNT(*) FROM survey_questions) > 0
-         THEN 1 ELSE 0 END) AS completed_training
-    FROM users u
-    ORDER BY u.name
-  `);
+async function getStaffComplianceRows(allowedUserIds = null) {
+  const userFilter = allowedUserIds
+    ? `WHERE id IN (${allowedUserIds.map((_, i) => `$${i + 1}`).join(',')})`
+    : '';
+  const usersResult = await db.query(
+    `SELECT id, name, email, role, created_at FROM users ${userFilter} ORDER BY name`,
+    allowedUserIds || []
+  );
 
-  return result.rows.map((row) => {
-    const totalPolicies = Number(row.total_policies);
-    const acknowledgedPolicies = Number(row.acknowledged_policies);
-    const totalTraining = Number(row.total_training);
-    const completedTraining = Number(row.completed_training);
+  // Denominators are now assignment-based (policy_assignments / training_assignments)
+  // instead of "every policy"/"target_roles" — a user is only compliant/overdue
+  // against the policies and training actually assigned to their role or to them.
+  const policyRows = (await db.query(`
+    SELECT u.id AS user_id, p.id AS policy_id, p.version AS current_version, p.updated_at AS policy_updated_at,
+      (SELECT MIN(pa.created_at) FROM policy_assignments pa
+       WHERE pa.policy_id = p.id AND (pa.role_key = u.role OR pa.user_id = u.id)) AS assigned_at,
+      (SELECT a.decision FROM acknowledgements a
+       WHERE a.policy_id = p.id AND a.user_id = u.id
+         AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = u.id)) AS decision,
+      (SELECT a.version_acknowledged FROM acknowledgements a
+       WHERE a.policy_id = p.id AND a.user_id = u.id
+         AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = u.id)) AS version_acknowledged
+    FROM users u
+    CROSS JOIN policies p
+    WHERE EXISTS (
+      SELECT 1 FROM policy_assignments pa
+      WHERE pa.policy_id = p.id AND (pa.role_key = u.role OR pa.user_id = u.id)
+    )
+  `)).rows;
+
+  const trainingRows = (await db.query(`
+    SELECT u.id AS user_id, m.id AS module_id, m.created_at AS module_created_at,
+      (SELECT MIN(ta.created_at) FROM training_assignments ta
+       WHERE ta.module_id = m.id AND (ta.role_key = u.role OR ta.user_id = u.id)) AS assigned_at,
+      EXISTS (
+        SELECT 1 FROM quiz_attempts qa WHERE qa.module_id = m.id AND qa.user_id = u.id AND qa.passed = TRUE
+      ) AS completed
+    FROM users u
+    CROSS JOIN training_modules m
+    WHERE EXISTS (
+      SELECT 1 FROM training_assignments ta
+      WHERE ta.module_id = m.id AND (ta.role_key = u.role OR ta.user_id = u.id)
+    )
+  `)).rows;
+
+  const surveyTotalsResult = await db.query('SELECT COUNT(*) AS total FROM survey_questions');
+  const totalSurveyQuestions = Number(surveyTotalsResult.rows[0].total);
+
+  const surveyRows = (await db.query(`
+    SELECT user_id, COUNT(*) AS answered, MAX(answered_at) AS last_answered_at
+    FROM survey_responses
+    GROUP BY user_id
+  `)).rows;
+  const surveyByUser = new Map(surveyRows.map((row) => [String(row.user_id), row]));
+
+  const policiesByUser = new Map();
+  for (const row of policyRows) {
+    const key = String(row.user_id);
+    if (!policiesByUser.has(key)) policiesByUser.set(key, []);
+    policiesByUser.get(key).push(row);
+  }
+  const trainingByUser = new Map();
+  for (const row of trainingRows) {
+    const key = String(row.user_id);
+    if (!trainingByUser.has(key)) trainingByUser.set(key, []);
+    trainingByUser.get(key).push(row);
+  }
+
+  const dueCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
+  const isOverdue = (date) => Boolean(date) && new Date(date).getTime() <= dueCutoff;
+
+  return usersResult.rows.map((user) => {
+    const key = String(user.id);
+    const assignedPolicies = policiesByUser.get(key) || [];
+    const assignedTraining = trainingByUser.get(key) || [];
+    const survey = surveyByUser.get(key);
+    const surveyAnswered = survey ? Number(survey.answered) : 0;
+    const surveyComplete = totalSurveyQuestions > 0 && surveyAnswered >= totalSurveyQuestions;
+
+    let acknowledgedPolicies = 0;
+    let overdueItems = 0;
+    for (const policy of assignedPolicies) {
+      const compliant = policy.decision === 'agreed' && Number(policy.version_acknowledged) === Number(policy.current_version);
+      if (compliant) {
+        acknowledgedPolicies++;
+        continue;
+      }
+      // Effective start of the clock: the latest of when it was assigned,
+      // when the user joined, or when the policy itself was last updated.
+      const effectiveStart = Math.max(
+        Date.parse(policy.assigned_at || user.created_at) || 0,
+        Date.parse(user.created_at) || 0,
+        Date.parse(policy.policy_updated_at) || 0
+      );
+      if (isOverdue(effectiveStart)) overdueItems++;
+    }
+
+    let completedTraining = 0;
+    for (const training of assignedTraining) {
+      if (training.completed) {
+        completedTraining++;
+        continue;
+      }
+      const effectiveStart = Math.max(
+        Date.parse(training.assigned_at || user.created_at) || 0,
+        Date.parse(user.created_at) || 0
+      );
+      if (isOverdue(effectiveStart)) overdueItems++;
+    }
+
+    // The security-awareness survey counts as one additional "training" item.
+    const totalTraining = assignedTraining.length + (totalSurveyQuestions > 0 ? 1 : 0);
+    if (totalSurveyQuestions > 0) {
+      if (surveyComplete) {
+        completedTraining++;
+      } else if (isOverdue(survey ? survey.last_answered_at : user.created_at)) {
+        overdueItems++;
+      }
+    }
+
+    const totalPolicies = assignedPolicies.length;
     const totalItems = totalPolicies + totalTraining;
     const completedItems = acknowledgedPolicies + completedTraining;
-    const surveyComplete = Number(row.total_survey_questions) > 0 &&
-      Number(row.answered_survey_questions) >= Number(row.total_survey_questions);
-    const requiredModules = Math.max(0, totalTraining - 1);
-    const completedModules = Math.max(0, completedTraining - Number(surveyComplete));
-    const dueCutoff = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    const isOverdue = (date) => date && new Date(date).getTime() <= dueCutoff;
-    const overdueItems = Number(isOverdue(row.oldest_pending_policy_at)) +
-      Number(!surveyComplete && isOverdue(row.created_at)) +
-      (surveyComplete && completedModules < requiredModules && isOverdue(row.last_survey_at)
-        ? requiredModules - completedModules
-        : 0);
 
     return {
-      id: row.id,
-      name: row.name,
-      email: row.email,
-      role: row.role,
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
       totalPolicies,
       acknowledgedPolicies,
       totalTraining,

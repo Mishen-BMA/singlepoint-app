@@ -18,7 +18,7 @@ if (databaseUrl.startsWith('sqlite:')) {
   const connection = new Database(filename);
   connection.pragma('foreign_keys = ON');
 
-  module.exports = {
+  const sqliteDb = {
     dialect: 'sqlite',
     async query(sql, parameters = []) {
       const sqliteParameters = [];
@@ -43,8 +43,25 @@ if (databaseUrl.startsWith('sqlite:')) {
     },
     async end() {
       connection.close();
+    },
+    // better-sqlite3 uses a single connection, so BEGIN/COMMIT issued through
+    // the shared query() function are already transactional (statements are
+    // serialized on the same connection). The callback receives sqliteDb.query
+    // so migrations/model code can use one function regardless of dialect.
+    async transaction(callback) {
+      await sqliteDb.query('BEGIN');
+      try {
+        const result = await callback(sqliteDb.query);
+        await sqliteDb.query('COMMIT');
+        return result;
+      } catch (error) {
+        try { await sqliteDb.query('ROLLBACK'); } catch (_rollbackError) { /* ignore */ }
+        throw error;
+      }
     }
   };
+
+  module.exports = sqliteDb;
 } else if (databaseUrl.startsWith('postgres://') || databaseUrl.startsWith('postgresql://')) {
   const { Pool } = require('pg');
   const pool = new Pool({
@@ -57,6 +74,23 @@ if (databaseUrl.startsWith('sqlite:')) {
   });
 
   pool.dialect = 'postgres';
+  // pool.query() may hand out a different connection per call, so raw
+  // BEGIN/COMMIT via pool.query() is NOT transactional. Checkout a single
+  // client and run the whole callback against it instead.
+  pool.transaction = async function transaction(callback) {
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const result = await callback(client.query.bind(client));
+      await client.query('COMMIT');
+      return result;
+    } catch (error) {
+      try { await client.query('ROLLBACK'); } catch (_rollbackError) { /* ignore */ }
+      throw error;
+    } finally {
+      client.release();
+    }
+  };
   module.exports = pool;
 } else {
   throw new Error('DATABASE_URL must use sqlite:, postgres://, or postgresql://');

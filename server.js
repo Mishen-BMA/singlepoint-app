@@ -5,7 +5,9 @@ const { rateLimit } = require('express-rate-limit');
 const policyRoutes = require('./policy management - mishen/routes/policyRoutes');
 const { initializePolicyTables, seedDefaultPolicies } = require('./policy management - mishen/models/policyModel');
 const authRoutes = require('./authentication-authorization-charuka/routes/authRoutes');
+const roleRoutes = require('./authentication-authorization-charuka/routes/roleRoutes');
 const { initializeUserTable } = require('./authentication-authorization-charuka/models/userModel');
+const { runMigrations, runAssignmentMigrations } = require('./models/migrations');
 const express = require('express');
 const app = express();
 const trainingRoutes = require('./security-training-awareness-nihara/routes/trainingRoutes');
@@ -39,6 +41,7 @@ app.use('/api/compliance', complianceRoutes);
 app.use('/api', policyRoutes);
 app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, limit: 8, standardHeaders: 'draft-8', legacyHeaders: false }));
 app.use('/api', authRoutes);
+app.use('/api', roleRoutes);
 app.use('/api', trainingRoutes);
 app.use('/api/incidents', incidentRoutes);
 
@@ -50,9 +53,11 @@ const PORT = process.env.PORT || 4000;
 
 async function startServer(port = PORT) {
   await initializeUserTable();
+  await runMigrations();
   await initializePolicyTables();
   await seedDefaultPolicies();
   await initializeTrainingTables();
+  await runAssignmentMigrations();
   await initializeIncidentTable();
   await initializeComplianceTables();
   await captureComplianceSnapshot();

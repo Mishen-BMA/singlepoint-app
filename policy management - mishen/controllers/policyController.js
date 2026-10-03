@@ -7,6 +7,9 @@ const {
   getAcknowledgementHistory
 } = require('../models/policyModel');
 const { revokeAuthSession, recordLoginEvent } = require('../../authentication-authorization-charuka/models/userModel');
+const { can, scopeOf, assertInScope } = require('../../authentication-authorization-charuka/middleware/permissions');
+const { getScopeUserIds } = require('../../authentication-authorization-charuka/models/scopeModel');
+const { getAllRoles } = require('../../authentication-authorization-charuka/models/roleModel');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -41,6 +44,16 @@ async function createPolicy(req, res) {
 
 async function getAllPolicies(req, res) {
   try {
+    // Policy authors (policies.manage, i.e. admin) see every policy so they
+    // can edit anything. Everyone else only sees policies assigned to their
+    // role or to them personally.
+    const isAuthor = await can(req.user, 'policies.manage');
+    const assignmentFilter = isAuthor
+      ? ''
+      : `WHERE EXISTS (
+           SELECT 1 FROM policy_assignments pa
+           WHERE pa.policy_id = p.id AND (pa.role_key = $2 OR pa.user_id = $1)
+         )`;
     const result = await db.query(
       `SELECT p.*,
         (SELECT a.version_acknowledged FROM acknowledgements a
@@ -53,8 +66,9 @@ async function getAllPolicies(req, res) {
          WHERE a.policy_id = p.id AND a.user_id = $1
            AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = $1)) AS acknowledged_at
        FROM policies p
+       ${assignmentFilter}
        ORDER BY p.created_at DESC`,
-      [req.user.id]
+      [req.user.id, req.user.role]
     );
     result.rows = result.rows.map((row) => ({
       ...row,
@@ -75,6 +89,13 @@ async function getAcknowledgementsForPolicy(req, res) {
   const { id } = req.params;
 
   try {
+    const policy = await getPolicyById(id);
+    if (!policy) return res.status(404).json({ error: 'Policy not found' });
+
+    // Team-scoped managers only see acknowledgements from their own reports,
+    // never the whole org (policies.view_acknowledgements scope === 'team').
+    const allowedIds = await getScopeUserIds(req.user, req.permissionScope);
+    const userFilter = allowedIds ? `AND u.id IN (${allowedIds.map((_, i) => `$${i + 2}`).join(',')})` : '';
     const result = await db.query(
       `SELECT u.id AS user_id, u.name, u.email, p.version AS current_version, p.updated_at,
         (SELECT a.version_acknowledged FROM acknowledgements a
@@ -87,14 +108,10 @@ async function getAcknowledgementsForPolicy(req, res) {
          WHERE a.policy_id = p.id AND a.user_id = u.id
            AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = u.id)) AS acknowledged_at
        FROM policies p CROSS JOIN users u
-       WHERE p.id = $1
+       WHERE p.id = $1 ${userFilter}
        ORDER BY u.name`,
-      [id]
+      [id, ...(allowedIds || [])]
     );
-    if (result.rowCount === 0) {
-      const policy = await db.query('SELECT id FROM policies WHERE id = $1', [id]);
-      if (policy.rowCount === 0) return res.status(404).json({ error: 'Policy not found' });
-    }
     result.rows = result.rows.map((row) => ({
       ...row,
       ...statusFor({
@@ -137,7 +154,16 @@ async function updatePolicy(req, res) {
 
 async function getComplianceStatus(req, res) {
   const { policyId, userId } = req.params;
-  if (String(req.user.id) !== String(userId) && !['admin', 'manager'].includes(req.user.role)) {
+  const scope = String(req.user.id) === String(userId) ? 'own' : 'overview';
+  if (scope === 'overview') {
+    const overviewScope = (await scopeOf(req.user, 'compliance.view_overview')) || (await scopeOf(req.user, 'compliance.view_executive'));
+    if (!overviewScope) return res.status(403).json({ error: 'You do not have permission to view this compliance report' });
+    req.permissionScope = overviewScope;
+    const allowed = await getScopeUserIds(req.user, overviewScope);
+    if (allowed && !allowed.map(String).includes(String(userId))) {
+      return res.status(403).json({ error: 'You do not have permission to view this compliance report' });
+    }
+  } else if (!(await can(req.user, 'compliance.view_own'))) {
     return res.status(403).json({ error: 'You can only view your own compliance' });
   }
 
@@ -194,6 +220,18 @@ async function acknowledgePolicy(req, res) {
     if (policy.requires_gate) {
       return res.status(409).json({ code: 'USE_GATE_ENDPOINT', error: 'This policy requires the Acceptable Use Policy gate endpoint' });
     }
+    // You can only acknowledge policies assigned to your role or to you
+    // personally — not any arbitrary policy id.
+    const isManager = await can(req.user, 'policies.manage');
+    if (!isManager) {
+      const assignment = await db.query(
+        `SELECT 1 FROM policy_assignments WHERE policy_id = $1 AND (role_key = $2 OR user_id = $3)`,
+        [policy_id, req.user.role, user_id]
+      );
+      if (assignment.rowCount === 0) {
+        return res.status(404).json({ error: 'Policy not found' });
+      }
+    }
     const result = await db.query(
       `INSERT INTO acknowledgements (policy_id, user_id, version_acknowledged, decision)
        SELECT id, $1, version, 'agreed' FROM policies WHERE id = $2
@@ -211,7 +249,16 @@ async function acknowledgePolicy(req, res) {
 
 async function getUserComplianceOverview(req, res) {
   const { userId } = req.params;
-  if (String(req.user.id) !== String(userId) && !['admin', 'manager'].includes(req.user.role)) {
+  const scope = String(req.user.id) === String(userId) ? 'own' : 'overview';
+  if (scope === 'overview') {
+    const overviewScope = (await scopeOf(req.user, 'compliance.view_overview')) || (await scopeOf(req.user, 'compliance.view_executive'));
+    if (!overviewScope) return res.status(403).json({ error: 'You do not have permission to view this compliance report' });
+    req.permissionScope = overviewScope;
+    const allowed = await getScopeUserIds(req.user, overviewScope);
+    if (allowed && !allowed.map(String).includes(String(userId))) {
+      return res.status(403).json({ error: 'You do not have permission to view this compliance report' });
+    }
+  } else if (!(await can(req.user, 'compliance.view_own'))) {
     return res.status(403).json({ error: 'You can only view your own compliance' });
   }
 
@@ -228,6 +275,13 @@ async function getUserComplianceOverview(req, res) {
          WHERE a.policy_id = p.id AND a.user_id = $1
            AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = $1)) AS acknowledged_at
        FROM policies p
+       WHERE EXISTS (
+         SELECT 1 FROM policy_assignments pa
+         WHERE pa.policy_id = p.id AND (
+           pa.user_id = $1
+           OR pa.role_key = (SELECT role FROM users WHERE id = $1)
+         )
+       )
        ORDER BY p.created_at DESC`,
       [userId]
     );
@@ -332,6 +386,68 @@ async function getAcknowledgementHistoryForPolicy(req, res) {
   }
 }
 
+async function getPolicyAssignments(req, res) {
+  const { id } = req.params;
+  try {
+    const policy = await getPolicyById(id);
+    if (!policy) return res.status(404).json({ error: 'Policy not found' });
+    const result = await db.query(
+      `SELECT pa.id, pa.role_key, pa.user_id, pa.due_days, u.name AS user_name, u.email AS user_email
+       FROM policy_assignments pa
+       LEFT JOIN users u ON u.id = pa.user_id
+       WHERE pa.policy_id = $1
+       ORDER BY pa.role_key, pa.user_id`,
+      [id]
+    );
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch policy assignments' });
+  }
+}
+
+async function setPolicyAssignments(req, res) {
+  const { id } = req.params;
+  const { roleKeys, userIds, dueDays } = req.body;
+
+  if (!Array.isArray(roleKeys) && !Array.isArray(userIds)) {
+    return res.status(400).json({ error: 'Provide roleKeys and/or userIds arrays' });
+  }
+  const due = Number.isFinite(dueDays) ? dueDays : 30;
+
+  try {
+    const policy = await getPolicyById(id);
+    if (!policy) return res.status(404).json({ error: 'Policy not found' });
+
+    const validRoles = (await getAllRoles()).map((role) => role.key);
+    for (const roleKey of roleKeys || []) {
+      if (!validRoles.includes(roleKey)) {
+        return res.status(400).json({ error: `Unknown role: ${roleKey}` });
+      }
+    }
+
+    await db.transaction(async (query) => {
+      await query('DELETE FROM policy_assignments WHERE policy_id = $1', [id]);
+      for (const roleKey of roleKeys || []) {
+        await query(
+          'INSERT INTO policy_assignments (policy_id, role_key, due_days) VALUES ($1, $2, $3)',
+          [id, roleKey, due]
+        );
+      }
+      for (const userId of userIds || []) {
+        await query(
+          'INSERT INTO policy_assignments (policy_id, user_id, due_days) VALUES ($1, $2, $3)',
+          [id, userId, due]
+        );
+      }
+    });
+
+    const result = await db.query('SELECT * FROM policy_assignments WHERE policy_id = $1', [id]);
+    res.json(result.rows);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update policy assignments' });
+  }
+}
+
 module.exports = {
   createPolicy,
   getAllPolicies,
@@ -342,5 +458,7 @@ module.exports = {
   getUserComplianceOverview,
   getGatePolicies,
   postGateDecision,
-  getAcknowledgementHistoryForPolicy
+  getAcknowledgementHistoryForPolicy,
+  getPolicyAssignments,
+  setPolicyAssignments
 };
