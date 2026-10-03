@@ -6,6 +6,7 @@ const {
   acknowledgePolicy,
   getAcknowledgementsForPolicy,
   updatePolicy,
+  deletePolicy,
   getComplianceStatus,
   getUserComplianceOverview,
   getGatePolicies,
@@ -24,6 +25,7 @@ router.post('/policies/gate/decision', requireSession, postGateDecision);
 
 router.post('/policies', requireUser, requirePermission('policies.manage'), createPolicy);
 router.put('/policies/:id', requireUser, requirePermission('policies.manage'), updatePolicy);
+router.delete('/policies/:id', requireUser, requirePermission('policies.manage'), deletePolicy);
 router.get('/policies', requireUser, requirePermission('policies.view_assigned'), getAllPolicies);
 router.post('/policies/acknowledge', requireUser, requirePermission('policies.acknowledge'), acknowledgePolicy);
 router.get('/policies/:id/acknowledgements', requireUser, requirePermission('policies.view_acknowledgements'), getAcknowledgementsForPolicy);

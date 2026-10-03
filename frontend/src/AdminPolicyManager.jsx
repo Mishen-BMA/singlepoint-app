@@ -92,6 +92,20 @@ function AdminPolicyManager() {
     } catch (historyError) {
       setError(historyError.message);
     }
+
+    async function deletePolicy(policy) {
+      if (policy.requires_gate || !window.confirm(`Delete "${policy.title}"? This cannot be undone.`)) return;
+      setError('');
+      setMessage('');
+      try {
+        await api(`/policies/${policy.id}`, { method: 'DELETE' });
+        setMessage('Policy deleted.');
+        if (editingId === policy.id) resetForm();
+        await loadPolicies();
+      } catch (deleteError) {
+        setError(deleteError.message);
+      }
+    }
   }
 
   function statusLabel(status) {
@@ -150,7 +164,10 @@ function AdminPolicyManager() {
                   </div>
                   <div className="policy-meta">Version {policy.version} · Updated {new Date(policy.updated_at).toLocaleDateString()}</div>
                 </div>
-                <button className="btn-secondary" onClick={() => editPolicy(policy)}>Edit</button>
+                <div className="button-row">
+                  <button type="button" className="btn-secondary" onClick={() => editPolicy(policy)}>Edit</button>
+                  {!policy.requires_gate && <button type="button" className="btn-danger" onClick={() => deletePolicy(policy)}>Delete</button>}
+                </div>
               </div>
               <p className="policy-preview">{policy.content}</p>
               <button className="link-button" onClick={() => viewAcknowledgements(policy.id)}>

@@ -85,8 +85,19 @@ function TrainingCenter({ user }) {
     try {
       const details = await api(`/training/modules/${module.id}`);
       setEditingModuleId(module.id);
-      setModuleForm({ title: details.title, category: details.category, durationMin: details.duration_min, content: details.content, targetRoles: (details.target_roles || '').split(',').filter(Boolean) });
+      setModuleForm({ title: details.title, category: details.category, durationMin: details.duration_min, content: details.content, targetRoles: String(details.target_roles || '').split(',').filter(Boolean) });
     } catch (loadError) { setError(loadError.message); }
+  }
+
+  async function deleteModule(module) {
+    if (!window.confirm(`Delete "${module.title}"? This cannot be undone.`)) return;
+    setError('');
+    setManagementMessage('');
+    try {
+      await api(`/training/modules/${module.id}`, { method: 'DELETE' });
+      setManagementMessage('Training module deleted.');
+      await refresh();
+    } catch (deleteError) { setError(deleteError.message); }
   }
 
   async function addQuizQuestion(event) {
@@ -183,8 +194,8 @@ function TrainingCenter({ user }) {
                 <article className="module-row" key={module.id}>
                   <div><span className="eyebrow">{module.category} · {module.duration_min} MIN</span><h3>{module.title}</h3><span className={module.overdue ? 'module-status status-overdue' : 'module-status'}>{module.completed ? 'Completed' : module.overdue ? 'Overdue' : module.recommended ? 'Recommended for you' : 'Available'}</span></div>
                   <div className="button-row">
-                    {isAdmin && <button className="btn-secondary" onClick={() => editModule(module)}>Edit</button>}
-                    <button className="btn-secondary" onClick={() => openModule(module)}>{isAdmin ? 'Manage quiz' : module.completed ? 'Retake' : 'Start'}</button>
+                    {isAdmin && <><button type="button" className="btn-secondary" onClick={() => editModule(module)}>Edit</button><button type="button" className="btn-danger" onClick={() => deleteModule(module)}>Delete</button></>}
+                    <button type="button" className="btn-secondary" onClick={() => openModule(module)}>{isAdmin ? 'Manage quiz' : module.completed ? 'Retake' : 'Start'}</button>
                   </div>
                 </article>
               ))}

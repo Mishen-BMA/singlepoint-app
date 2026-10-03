@@ -192,6 +192,23 @@ async function updatePolicy(req, res) {
   }
 }
 
+async function deletePolicy(req, res) {
+  const policyId = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(policyId)) return res.status(400).json({ error: 'Invalid policy id' });
+
+  try {
+    const policy = await db.query('SELECT requires_gate FROM policies WHERE id = $1', [policyId]);
+    if (policy.rowCount === 0) return res.status(404).json({ error: 'Policy not found' });
+    if (policy.rows[0].requires_gate) {
+      return res.status(409).json({ error: 'The mandatory gate policy cannot be deleted' });
+    }
+    await db.query('DELETE FROM policies WHERE id = $1', [policyId]);
+    res.status(204).send();
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete policy' });
+  }
+}
+
 async function getComplianceStatus(req, res) {
   const { policyId, userId } = req.params;
   const scope = String(req.user.id) === String(userId) ? 'own' : 'overview';
@@ -497,6 +514,7 @@ module.exports = {
   acknowledgePolicy,
   getAcknowledgementsForPolicy,
   updatePolicy,
+  deletePolicy,
   getComplianceStatus,
   getUserComplianceOverview,
   getGatePolicies,

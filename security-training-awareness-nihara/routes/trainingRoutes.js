@@ -9,6 +9,7 @@ router.post('/training/survey', requireUser, c.submitSurvey);
 router.get('/training/modules', requireUser, c.listModules);
 router.post('/training/modules', requireUser, requirePermission('training.manage'), c.createModule);
 router.put('/training/modules/:id', requireUser, requirePermission('training.manage'), c.updateModule);
+router.delete('/training/modules/:id', requireUser, requirePermission('training.manage'), c.deleteModule);
 router.get('/training/modules/:id', requireUser, c.getModule);
 router.get('/training/modules/:id/quiz', requireUser, c.getQuiz);
 router.post('/training/modules/:id/quiz', requireUser, c.submitQuiz);

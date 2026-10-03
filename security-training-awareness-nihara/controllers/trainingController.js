@@ -68,6 +68,7 @@ async function updateModule(req, res) {
   if (!Number.isInteger(id) || id < 1 || !validateModule({ title, category, durationMin, content }) || !validTargetRoles(targetRoles)) {
     return res.status(400).json({ error: 'Provide a valid module and complete module details' });
   }
+
   try {
     const module = await updateTrainingModule(id, { title: title.trim(), category: category.trim(), durationMin: Number(durationMin), content: content.trim(), targetRoles });
     if (!module) return res.status(404).json({ error: 'Training module not found' });
@@ -75,6 +76,19 @@ async function updateModule(req, res) {
   } catch (error) {
     console.error(error.message);
     res.status(500).json({ error: 'Failed to update training module' });
+  }
+}
+
+async function deleteModule(req, res) {
+  const id = Number.parseInt(req.params.id, 10);
+  if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid module id' });
+  try {
+    const result = await db.query('DELETE FROM training_modules WHERE id = $1 RETURNING id', [id]);
+    if (result.rowCount === 0) return res.status(404).json({ error: 'Training module not found' });
+    res.status(204).send();
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({ error: 'Failed to delete training module' });
   }
 }
 
@@ -388,5 +402,5 @@ async function setModuleAssignments(req, res) {
 
 module.exports = {
   getSurvey, submitSurvey, listModules, getModule, getQuiz, submitQuiz, myProgress,
-  createModule, updateModule, saveQuizQuestion, getModuleAssignments, setModuleAssignments
+  createModule, updateModule, deleteModule, saveQuizQuestion, getModuleAssignments, setModuleAssignments
 };
