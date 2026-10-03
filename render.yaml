@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: singlepoint-app
+    runtime: node
+    plan: free
+    branch: main
+    buildCommand: npm ci
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PGSSLMODE
+        value: require
+      - key: FRONTEND_ORIGIN
+        value: https://mishen-bma.github.io
+      # Secrets below are intentionally not synced from this file.
+      # Set their real values directly in the Render dashboard
+      # (Service -> Environment) after rotating any exposed credentials.
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        sync: false
