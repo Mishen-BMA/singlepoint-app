@@ -16,6 +16,7 @@ function TrainingCenter({ user }) {
   const [editingModuleId, setEditingModuleId] = useState(null);
   const [questionForm, setQuestionForm] = useState({ question: '', options: '', correctIndex: 0 });
   const [managementMessage, setManagementMessage] = useState('');
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
 
   async function refresh() {
     const [moduleData, progressData, surveyData] = await Promise.all([
@@ -94,14 +95,22 @@ function TrainingCenter({ user }) {
   }
 
   async function deleteModule(module) {
-    if (!window.confirm(`Delete "${module.title}"? This cannot be undone.`)) return;
+    if (pendingDeleteId !== module.id) {
+      setPendingDeleteId(module.id);
+      setManagementMessage(`Click Delete again to permanently remove "${module.title}".`);
+      return;
+    }
     setError('');
     setManagementMessage('');
     try {
       await api(`/training/modules/${module.id}`, { method: 'DELETE' });
       setManagementMessage('Training module deleted.');
+      setPendingDeleteId(null);
       await refresh();
-    } catch (deleteError) { setError(deleteError.message); }
+    } catch (deleteError) {
+      setError(deleteError.message);
+      setPendingDeleteId(null);
+    }
   }
 
   async function addQuizQuestion(event) {
@@ -198,7 +207,7 @@ function TrainingCenter({ user }) {
                 <article className="module-row" key={module.id}>
                   <div><span className="eyebrow">{module.category} · {module.duration_min} MIN</span><h3>{module.title}</h3><span className={module.overdue ? 'module-status status-overdue' : 'module-status'}>{module.completed ? 'Completed' : module.overdue ? 'Overdue' : module.recommended ? 'Recommended for you' : 'Available'}</span></div>
                   <div className="button-row">
-                    {isAdmin && <><button type="button" className="btn-secondary" onClick={() => editModule(module)}>Edit</button><button type="button" className="btn-danger" onClick={() => deleteModule(module)}>Delete</button></>}
+                    {isAdmin && <><button type="button" className="btn-secondary" onClick={() => editModule(module)}>Edit</button><button type="button" className="btn-danger" onClick={() => deleteModule(module)}>{pendingDeleteId === module.id ? 'Confirm delete' : 'Delete'}</button></>}
                     <button type="button" className="btn-secondary" onClick={() => openModule(module)}>{isAdmin ? 'Manage quiz' : module.completed ? 'Retake' : 'Start'}</button>
                   </div>
                 </article>

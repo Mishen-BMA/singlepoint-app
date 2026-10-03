@@ -21,6 +21,7 @@ function AdminPolicyManager() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [message, setMessage] = useState('');
+  const [pendingDeleteId, setPendingDeleteId] = useState(null);
 
   useEffect(() => {
     loadPolicies();
@@ -98,16 +99,23 @@ function AdminPolicyManager() {
     }
 
     async function deletePolicy(policy) {
-      if (policy.requires_gate || !window.confirm(`Delete "${policy.title}"? This cannot be undone.`)) return;
+      if (policy.requires_gate) return;
+      if (pendingDeleteId !== policy.id) {
+        setPendingDeleteId(policy.id);
+        setMessage(`Click Delete again to permanently remove "${policy.title}".`);
+        return;
+      }
       setError('');
       setMessage('');
       try {
         await api(`/policies/${policy.id}`, { method: 'DELETE' });
         setMessage('Policy deleted.');
+        setPendingDeleteId(null);
         if (editingId === policy.id) resetForm();
         await loadPolicies();
       } catch (deleteError) {
         setError(deleteError.message);
+        setPendingDeleteId(null);
       }
     }
   }
@@ -170,7 +178,7 @@ function AdminPolicyManager() {
                 </div>
                 <div className="button-row">
                   <button type="button" className="btn-secondary" onClick={() => editPolicy(policy)}>Edit</button>
-                  {!policy.requires_gate && <button type="button" className="btn-danger" onClick={() => deletePolicy(policy)}>Delete</button>}
+                  {!policy.requires_gate && <button type="button" className="btn-danger" onClick={() => deletePolicy(policy)}>{pendingDeleteId === policy.id ? 'Confirm delete' : 'Delete'}</button>}
                 </div>
               </div>
               <p className="policy-preview">{policy.content}</p>
