@@ -21,7 +21,17 @@ function App() {
   const [privacyOpen, setPrivacyOpen] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
 
+  function navigateToScreen(nextScreen, replace = false) {
+    setScreen(nextScreen);
+    const method = replace ? 'replaceState' : 'pushState';
+    window.history[method]({ singlepointScreen: nextScreen }, '', window.location.href);
+  }
+
   useEffect(() => {
+    if (!window.history.state || typeof window.history.state.singlepointScreen !== 'string') {
+      const currentState = window.history.state && typeof window.history.state === 'object' ? window.history.state : {};
+      window.history.replaceState({ ...currentState, singlepointScreen: 'dashboard' }, '', window.location.href);
+    }
     function handleUnauthorized() {
       setUser(null);
       setScreen('dashboard');
@@ -31,6 +41,10 @@ function App() {
     }
     window.addEventListener('singlepoint:unauthorized', handleUnauthorized);
     window.addEventListener('singlepoint:aup-required', handleAupRequired);
+    function handleHistoryNavigation(event) {
+      setScreen(event.state && typeof event.state.singlepointScreen === 'string' ? event.state.singlepointScreen : 'dashboard');
+    }
+    window.addEventListener('popstate', handleHistoryNavigation);
     if (!getToken()) {
       setCheckingSession(false);
     } else {
@@ -39,6 +53,7 @@ function App() {
     return () => {
       window.removeEventListener('singlepoint:unauthorized', handleUnauthorized);
       window.removeEventListener('singlepoint:aup-required', handleAupRequired);
+      window.removeEventListener('popstate', handleHistoryNavigation);
     };
   }, []);
 
@@ -65,7 +80,7 @@ function App() {
   }
 
   if (checkingSession) return <main className="login-screen"><p>Checking session...</p></main>;
-  if (!user) return <div className={`app-theme theme-${theme}`}><Login theme={theme} onToggleTheme={toggleTheme} onLogin={(loggedInUser) => { setUser(loggedInUser); setScreen('dashboard'); }} /></div>;
+  if (!user) return <div className={`app-theme theme-${theme}`}><Login theme={theme} onToggleTheme={toggleTheme} onLogin={(loggedInUser) => { setUser(loggedInUser); navigateToScreen('dashboard', true); }} /></div>;
   if (user.aupPending) {
     return (
       <div className={`app-theme theme-${theme}`}>
@@ -121,7 +136,7 @@ function App() {
               <div className="brand-text"><h2>SinglePoint!</h2><span>SALLELANKA</span></div>
             </div>
             <nav aria-label="Main navigation">
-              {navigation.map((item) => <button key={item.id} className={`nav-item ${screen === item.id ? 'active' : ''}`} onClick={() => setScreen(item.id)}>{item.label}</button>)}
+              {navigation.map((item) => <button key={item.id} className={`nav-item ${screen === item.id ? 'active' : ''}`} onClick={() => navigateToScreen(item.id)}>{item.label}</button>)}
             </nav>
           </div>
           <div className="sidebar-account">
