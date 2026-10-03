@@ -317,17 +317,20 @@ async function getGatePolicies(req, res) {
 
 async function postGateDecision(req, res) {
   const { policy_id, version, decision } = req.body;
+  const policyId = Number(policy_id);
+  const policyVersion = Number(version);
 
-  if (!Number.isFinite(policy_id) || !Number.isFinite(version) || !['agreed', 'declined'].includes(decision)) {
+  if (!Number.isInteger(policyId) || policyId < 1 || !Number.isInteger(policyVersion) || policyVersion < 1 ||
+      !['agreed', 'declined'].includes(decision)) {
     return res.status(400).json({ error: 'policy_id, version, and a valid decision are required' });
   }
 
   try {
-    const policy = await getPolicyById(policy_id);
+    const policy = await getPolicyById(policyId);
     if (!policy || !policy.requires_gate) {
       return res.status(404).json({ error: 'Gate policy not found' });
     }
-    if (Number(policy.version) !== Number(version)) {
+    if (Number(policy.version) !== policyVersion) {
       return res.status(409).json({
         code: 'POLICY_VERSION_CHANGED',
         policy: { id: policy.id, title: policy.title, content: policy.content, version: policy.version }
