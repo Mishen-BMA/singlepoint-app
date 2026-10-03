@@ -1,10 +1,12 @@
 import './App.css';
 import { useEffect, useState } from 'react';
 import AdminPolicyManager from './AdminPolicyManager';
+import AccountSettings from './AccountSettings';
 import Dashboard from './Dashboard';
 import IncidentCenter from './IncidentCenter';
 import Login from './Login';
 import PolicyList from './PolicyList';
+import PrivacyNotice from './PrivacyNotice';
 import TrainingCenter from './TrainingCenter';
 import UserManager from './UserManager';
 import { api, clearToken, getToken } from './api';
@@ -44,6 +46,8 @@ function App() {
     { id: 'policies', label: 'Security policies' },
     { id: 'training', label: 'Security training' },
     { id: 'incidents', label: isManagement ? 'Incident reports' : 'Report an incident' },
+    { id: 'account', label: 'Account security' },
+    { id: 'privacy', label: 'Privacy notice' },
     ...(user.role === 'admin' ? [{ id: 'users', label: 'User management' }] : [])
   ];
   const headings = {
@@ -51,7 +55,9 @@ function App() {
     policies: user.role === 'admin' ? 'Policy management' : 'Security policies',
     training: 'Security training',
     incidents: isManagement ? 'Incident reports' : 'Incident reporting',
-    users: 'User management'
+    users: 'User management',
+    account: 'Account security',
+    privacy: 'Privacy notice'
   };
 
   let content;
@@ -61,6 +67,8 @@ function App() {
   else if (screen === 'training') content = <TrainingCenter user={user} />;
   else if (screen === 'incidents') content = <IncidentCenter user={user} />;
   else if (screen === 'users' && user.role === 'admin') content = <UserManager />;
+  else if (screen === 'account') content = <AccountSettings onSessionEnded={() => { setUser(null); setScreen('dashboard'); }} />;
+  else if (screen === 'privacy') content = <PrivacyNotice />;
   else content = <Dashboard user={user} />;
 
   return (

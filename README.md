@@ -4,18 +4,18 @@ Security policy awareness & compliance web app built for **Sallelanka Solutions 
 
 ## About
 
-SinglePoint was built following a real cybersecurity risk assessment (IE3052, Group 49) conducted on Sallelanka Solutions, which found 18 documented risks — most critically a single shared remote-access credential used across 250+ client systems, no written security policy, and no session logging. SinglePoint addresses these gaps directly by giving staff individual logins, tracking policy acknowledgement, delivering targeted security training, and giving management a compliance dashboard.
+SinglePoint was built following a cybersecurity risk assessment conducted on Sallelanka Solutions. The project addresses shared remote-access credentials and missing policy and session accountability through individual logins, policy acknowledgement, targeted security training, incident reporting, and a management compliance dashboard.
 
 This project is built for **IE3072 — Information Security Policy and Management**, SLIIT.
 
-## Team — Group 49
+## Team — Group E3072_021
 
-| Member | Module |
-|---|---|
-| Charuka Weerasinghe | Authentication & Authorization |
-| Mishen | Policy Management |
-| Nihara Dewindini | Security Training & Awareness |
-| Sadini Liyanamana | Compliance Tracking, Reporting & Incident Reporting |
+| Module |
+|---|
+| Authentication & Authorization |
+| Policy Management |
+| Security Training & Awareness |
+| Compliance Tracking, Reporting & Incident Reporting |
 
 ## Tech Stack
 
@@ -56,14 +56,17 @@ Requirements: Node.js 20 or newer and npm. SQLite is used automatically for loca
 	npm start
 	```
 
-The API listens on port 4000 by default. The frontend uses `http://localhost:4000/api`; set `VITE_API_URL` before building if the API is hosted elsewhere. Default policies and training modules are created idempotently at API startup. Administrators can create staff accounts from User Management. Incomplete items become overdue after 30 days.
+The API listens on port 4000 by default. The frontend uses `http://localhost:4000/api`; set `VITE_API_URL` before building if the API is hosted elsewhere. Default policies, including the Acceptable Use Policy, and training modules are created idempotently at API startup. Administrators can create, deactivate, and reactivate accounts. Users can change their own passwords. Incomplete requirements become overdue after 30 days.
 
 ## Workflows
 
-- Staff can sign in, acknowledge the current policy versions, complete a security-habits survey, take recommended quizzes, review reminders, and submit incident reports.
-- Managers can view organization compliance, send in-app reminders, review incidents, and export a CSV report.
-- Administrators can do the manager workflows, publish policy versions, inspect every user's acknowledgement state, and create or change account roles.
-- Authenticated API requests use short-lived JWTs. Each request refreshes the inactivity window; the browser replaces its token from the exposed response header. HTTPS is enforced when `NODE_ENV=production`, so production must terminate TLS at the app or a trusted reverse proxy.
+- Staff can sign in, acknowledge the current policy versions, complete a security-habits survey, take recommended quizzes, review reminders, change their password, and submit severity-rated incident reports.
+- Managers can view organization compliance, send in-app reminders, review and triage incidents, view the sign-in audit log, and export a CSV report.
+- Administrators can do the manager workflows, publish policy versions, inspect acknowledgement state, manage account roles and active status, and target training modules to roles.
+- Training recommendations combine survey answers with role requirements. Incident-reporting training is required for managers and admins by default. Quizzes require at least 70% to pass.
+- Authenticated requests use 30-minute sliding JWT sessions backed by revocable server-side session records. Logout and password changes revoke sessions. Successful/failed sign-ins, logout, and password changes are audited. Login attempts are rate-limited, Helmet supplies security headers, and HTTPS is enforced when `NODE_ENV=production`.
+- The privacy notice describes collected data and access. Survey answers and personal training progress are visible only to the person who submitted them; managers and admins receive the compliance and incident access required by their roles.
+- The in-app Acceptable Use Policy and [Word-ready policy source](docs/acceptable-use-policy.md) describe current app behavior. Update both whenever authentication, training thresholds, role permissions, or overdue rules change.
 
 ## Verification
 
@@ -71,6 +74,8 @@ The API listens on port 4000 by default. The frontend uses `http://localhost:400
 npm test
 npm --prefix frontend test
 npm --prefix frontend run build
+npm audit
+npm audit --prefix frontend
 ```
 
 The backend test suite runs against an isolated in-memory SQLite database. The frontend build and test suite are separate because the React app is maintained in `frontend/`.

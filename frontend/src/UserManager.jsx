@@ -18,6 +18,14 @@ function UserManager() {
     } catch (updateError) { setError(updateError.message); }
   }
 
+  async function changeStatus(account) {
+    setError('');
+    try {
+      await api(`/users/${account.id}/active`, { method: 'PATCH', body: { isActive: !account.is_active } });
+      await load();
+    } catch (updateError) { setError(updateError.message); }
+  }
+
   async function submit(event) {
     event.preventDefault();
     setError('');
@@ -46,7 +54,7 @@ function UserManager() {
       </section>
       <section className="data-section">
         <div className="section-heading"><div><span className="eyebrow">ACCESS REGISTER</span><h2>Accounts</h2></div><span>{users.length} users</span></div>
-        <div className="user-list">{users.map((account) => <div className="user-row" key={account.id}><div><strong>{account.name}</strong><small>{account.email}</small></div><label className="sr-only" htmlFor={`role-${account.id}`}>Role for {account.name}</label><select id={`role-${account.id}`} value={account.role} onChange={(event) => changeRole(account.id, event.target.value)}><option value="staff">Staff</option><option value="manager">Manager</option><option value="admin">Admin</option></select></div>)}</div>
+        <div className="user-list">{users.map((account) => <div className={`user-row ${account.is_active ? '' : 'user-row-inactive'}`} key={account.id}><div><strong>{account.name}</strong><small>{account.email} · {account.is_active ? 'Active' : 'Inactive'}</small></div><label className="sr-only" htmlFor={`role-${account.id}`}>Role for {account.name}</label><select id={`role-${account.id}`} value={account.role} onChange={(event) => changeRole(account.id, event.target.value)}><option value="staff">Staff</option><option value="manager">Manager</option><option value="admin">Admin</option></select><button className="btn-secondary" onClick={() => changeStatus(account)}>{account.is_active ? 'Deactivate' : 'Reactivate'}</button></div>)}</div>
       </section>
     </div>
   );

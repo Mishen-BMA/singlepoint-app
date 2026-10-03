@@ -12,7 +12,7 @@ function TrainingCenter({ user }) {
   const [selected, setSelected] = useState({});
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
-  const [moduleForm, setModuleForm] = useState({ title: '', category: '', durationMin: 10, content: '' });
+  const [moduleForm, setModuleForm] = useState({ title: '', category: '', durationMin: 10, content: '', targetRoles: [] });
   const [editingModuleId, setEditingModuleId] = useState(null);
   const [questionForm, setQuestionForm] = useState({ question: '', options: '', correctIndex: 0 });
   const [managementMessage, setManagementMessage] = useState('');
@@ -74,7 +74,7 @@ function TrainingCenter({ user }) {
         method: editingModuleId ? 'PUT' : 'POST',
         body: { ...moduleForm, durationMin: Number(moduleForm.durationMin) }
       });
-      setModuleForm({ title: '', category: '', durationMin: 10, content: '' });
+      setModuleForm({ title: '', category: '', durationMin: 10, content: '', targetRoles: [] });
       setEditingModuleId(null);
       setManagementMessage('Training module saved. Add at least one quiz question before assigning it.');
       await refresh();
@@ -85,7 +85,7 @@ function TrainingCenter({ user }) {
     try {
       const details = await api(`/training/modules/${module.id}`);
       setEditingModuleId(module.id);
-      setModuleForm({ title: details.title, category: details.category, durationMin: details.duration_min, content: details.content });
+      setModuleForm({ title: details.title, category: details.category, durationMin: details.duration_min, content: details.content, targetRoles: (details.target_roles || '').split(',').filter(Boolean) });
     } catch (loadError) { setError(loadError.message); }
   }
 
@@ -150,9 +150,10 @@ function TrainingCenter({ user }) {
             <form className="stack-form" onSubmit={saveModule}>
               <label>Title<input value={moduleForm.title} onChange={(event) => setModuleForm({ ...moduleForm, title: event.target.value })} minLength="3" required /></label>
               <label>Category<input value={moduleForm.category} onChange={(event) => setModuleForm({ ...moduleForm, category: event.target.value })} minLength="2" required /></label>
+              <fieldset className="target-roles"><legend>Required for roles</legend>{['staff', 'manager', 'admin'].map((role) => <label key={role}><input type="checkbox" checked={moduleForm.targetRoles.includes(role)} onChange={(event) => setModuleForm({ ...moduleForm, targetRoles: event.target.checked ? [...moduleForm.targetRoles, role] : moduleForm.targetRoles.filter((target) => target !== role) })} />{role}</label>)}</fieldset>
               <label>Duration in minutes<input type="number" min="1" max="240" value={moduleForm.durationMin} onChange={(event) => setModuleForm({ ...moduleForm, durationMin: event.target.value })} required /></label>
               <label>Lesson content<textarea rows="5" value={moduleForm.content} onChange={(event) => setModuleForm({ ...moduleForm, content: event.target.value })} minLength="10" required /></label>
-              <div className="button-row"><button className="btn-primary" type="submit">{editingModuleId ? 'Save changes' : 'Create module'}</button>{editingModuleId && <button className="btn-secondary" type="button" onClick={() => { setEditingModuleId(null); setModuleForm({ title: '', category: '', durationMin: 10, content: '' }); }}>Cancel</button>}</div>
+              <div className="button-row"><button className="btn-primary" type="submit">{editingModuleId ? 'Save changes' : 'Create module'}</button>{editingModuleId && <button className="btn-secondary" type="button" onClick={() => { setEditingModuleId(null); setModuleForm({ title: '', category: '', durationMin: 10, content: '', targetRoles: [] }); }}>Cancel</button>}</div>
             </form>
             {managementMessage && <p className="success-message" role="status">{managementMessage}</p>}
           </section>}

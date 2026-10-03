@@ -14,14 +14,15 @@ const ALLOWED_INCIDENT_TYPES = [
 ];
 
 const ALLOWED_STATUSES = [
-  'Pending',
-  'Under Review',
+  'Open',
+  'Investigating',
   'Resolved'
 ];
+const ALLOWED_SEVERITIES = ['Low', 'Medium', 'High', 'Critical'];
 
 async function submitIncident(req, res) {
   try {
-    const { incident_type, title, description } = req.body;
+    const { incident_type, title, description, severity = 'Medium' } = req.body;
 
     if (typeof incident_type !== 'string' || !incident_type) {
       return res.status(400).json({
@@ -46,6 +47,9 @@ async function submitIncident(req, res) {
         message: 'Invalid incident type'
       });
     }
+    if (!ALLOWED_SEVERITIES.includes(severity)) {
+      return res.status(400).json({ message: 'Invalid incident severity' });
+    }
 
     if (title.trim().length < 3) {
       return res.status(400).json({
@@ -63,7 +67,8 @@ async function submitIncident(req, res) {
       userId: req.user.id,
       incidentType: incident_type,
       title: title.trim(),
-      description: description.trim()
+      description: description.trim(),
+      severity
     });
 
     return res.status(201).json({
@@ -110,7 +115,7 @@ async function changeIncidentStatus(req, res) {
   try {
     const { id } = req.params;
 
-    const { status } = req.body;
+    const { status, severity } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -129,10 +134,14 @@ async function changeIncidentStatus(req, res) {
         message: 'Invalid incident status'
       });
     }
+    if (severity !== undefined && !ALLOWED_SEVERITIES.includes(severity)) {
+      return res.status(400).json({ message: 'Invalid incident severity' });
+    }
 
     const incident = await updateIncidentStatus(
       id,
       status,
+      severity || null,
       req.user.id
     );
 

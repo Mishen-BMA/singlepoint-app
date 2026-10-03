@@ -2,12 +2,14 @@ import { useEffect, useState } from 'react';
 import { api } from './api';
 
 const INCIDENT_TYPES = ['Suspicious Client Request', 'Lost Device', 'Policy Violation', 'Suspicious Activity', 'Other'];
-const STATUSES = ['Pending', 'Under Review', 'Resolved'];
+const STATUSES = ['Open', 'Investigating', 'Resolved'];
+const SEVERITIES = ['Low', 'Medium', 'High', 'Critical'];
 
 function IncidentCenter({ user }) {
   const canReview = user.role === 'admin' || user.role === 'manager';
   const [incidents, setIncidents] = useState([]);
   const [incidentType, setIncidentType] = useState(INCIDENT_TYPES[0]);
+  const [severity, setSeverity] = useState('Medium');
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [error, setError] = useState('');
@@ -24,7 +26,7 @@ function IncidentCenter({ user }) {
     event.preventDefault();
     setError('');
     try {
-      await api('/incidents', { method: 'POST', body: { incident_type: incidentType, title, description } });
+      await api('/incidents', { method: 'POST', body: { incident_type: incidentType, title, description, severity } });
       setTitle('');
       setDescription('');
       setNotice('Incident report submitted.');
@@ -45,6 +47,7 @@ function IncidentCenter({ user }) {
         <span className="eyebrow">REPORT A CONCERN</span><h2>New incident report</h2>
         <form className="stack-form" onSubmit={submit}>
           <label>Incident type<select value={incidentType} onChange={(event) => setIncidentType(event.target.value)}>{INCIDENT_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label>
+          <label>Severity<select value={severity} onChange={(event) => setSeverity(event.target.value)}>{SEVERITIES.map((level) => <option key={level}>{level}</option>)}</select></label>
           <label>Title<input value={title} onChange={(event) => setTitle(event.target.value)} minLength="3" maxLength="255" required /></label>
           <label>Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} minLength="10" rows="5" required /></label>
           <button className="btn-primary" type="submit">Submit report</button>
@@ -57,7 +60,7 @@ function IncidentCenter({ user }) {
         <div className="incident-list">
           {incidents.map((incident) => (
             <article className="incident-row" key={incident.id}>
-              <div><span className={`status-chip status-${incident.status.toLowerCase().replaceAll(' ', '-')}`}>{incident.status}</span><h3>{incident.title}</h3><p>{incident.description}</p><small>{incident.incident_type} · {incident.reported_by_name || 'Reported by you'} · {new Date(incident.reported_at).toLocaleString()}</small></div>
+              <div><span className={`status-chip status-${incident.status.toLowerCase()}`}>{incident.status}</span><span className={`severity-label severity-${incident.severity.toLowerCase()}`}>{incident.severity}</span><h3>{incident.title}</h3><p>{incident.description}</p><small>{incident.incident_type} · {incident.reported_by_name || 'Reported by you'} · {new Date(incident.reported_at).toLocaleString()}</small></div>
               {canReview && <label className="status-control">Status<select value={incident.status} onChange={(event) => updateStatus(incident.id, event.target.value)}>{STATUSES.map((status) => <option key={status}>{status}</option>)}</select></label>}
             </article>
           ))}

@@ -8,6 +8,7 @@ async function initializeTrainingTables() {
       category TEXT NOT NULL,
       duration_min INTEGER NOT NULL DEFAULT 10,
       content TEXT NOT NULL,
+      target_roles TEXT NOT NULL DEFAULT '',
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
       updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
@@ -65,7 +66,11 @@ async function initializeTrainingTables() {
   if (!hasUpdatedAt) {
     await db.query('ALTER TABLE training_modules ADD COLUMN updated_at TIMESTAMPTZ');
   }
+  if (!columns.rows.some((column) => (column.name || column.column_name) === 'target_roles')) {
+    await db.query("ALTER TABLE training_modules ADD COLUMN target_roles TEXT NOT NULL DEFAULT ''");
+  }
   await db.query('UPDATE training_modules SET updated_at = created_at WHERE updated_at IS NULL');
+  await db.query("UPDATE training_modules SET target_roles = 'manager,admin' WHERE title = 'How to Report an Incident' AND target_roles = ''");
 
   await seedTrainingData();
 }
@@ -82,14 +87,14 @@ async function seedTrainingData() {
     ['Safe Remote Access Practices', 'Access Control', 10,
      'Use your own individual login, close every remote session when finished, and decline unexpected connection requests.'],
     ['How to Report an Incident', 'Incident Management', 6,
-     'Report anything suspicious through the in-app incident form straight away. Do not just mention it in chat.']
+     'Report anything suspicious through the in-app incident form straight away. Do not just mention it in chat.', 'manager,admin']
   ];
 
   const ids = [];
   for (const m of modules) {
     const r = await db.query(
-      `INSERT INTO training_modules (title, category, duration_min, content)
-       VALUES ($1,$2,$3,$4) RETURNING id`, m);
+      `INSERT INTO training_modules (title, category, duration_min, content, target_roles)
+       VALUES ($1,$2,$3,$4,$5) RETURNING id`, [...m.slice(0, 4), m[4] || '']);
     ids.push(r.rows[0].id);
   }
   const [phish, pass, remote, report] = ids;
@@ -142,23 +147,23 @@ async function seedTrainingData() {
   }
 }
 
-async function createTrainingModule({ title, category, durationMin, content }) {
+async function createTrainingModule({ title, category, durationMin, content, targetRoles = [] }) {
   const result = await db.query(
-    `INSERT INTO training_modules (title, category, duration_min, content)
-     VALUES ($1, $2, $3, $4)
-     RETURNING id, title, category, duration_min, content, created_at, updated_at`,
-    [title, category, durationMin, content]
+    `INSERT INTO training_modules (title, category, duration_min, content, target_roles)
+     VALUES ($1, $2, $3, $4, $5)
+    RETURNING id, title, category, duration_min, content, target_roles, created_at, updated_at`,
+    [title, category, durationMin, content, targetRoles.join(',')]
   );
   return result.rows[0];
 }
 
-async function updateTrainingModule(id, { title, category, durationMin, content }) {
+async function updateTrainingModule(id, { title, category, durationMin, content, targetRoles = [] }) {
   const result = await db.query(
     `UPDATE training_modules
-     SET title = $1, category = $2, duration_min = $3, content = $4, updated_at = NOW()
-     WHERE id = $5
-     RETURNING id, title, category, duration_min, content, created_at, updated_at`,
-    [title, category, durationMin, content, id]
+     SET title = $1, category = $2, duration_min = $3, content = $4, target_roles = $5, updated_at = NOW()
+     WHERE id = $6
+    RETURNING id, title, category, duration_min, content, target_roles, created_at, updated_at`,
+    [title, category, durationMin, content, targetRoles.join(','), id]
   );
   return result.rows[0] || null;
 }

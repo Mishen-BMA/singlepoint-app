@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api } from './api';
+import PrivacyNotice from './PrivacyNotice';
 
 function Login({ onLogin }) {
   const [email, setEmail] = useState('');
@@ -32,6 +33,7 @@ function Login({ onLogin }) {
         <p className="eyebrow">SALLELANKA SOLUTIONS</p>
         <h1>SinglePoint</h1>
         <p className="subtitle">Security policy and compliance</p>
+        <details className="privacy-details"><summary>Privacy notice</summary><PrivacyNotice compact /></details>
         <form className="stack-form" onSubmit={submit}>
           <label>Email<input autoComplete="username" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
           <label>Password<input autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>

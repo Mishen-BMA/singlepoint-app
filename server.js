@@ -1,5 +1,7 @@
 require('dotenv').config();
 const cors = require('cors');
+const helmet = require('helmet');
+const { rateLimit } = require('express-rate-limit');
 const policyRoutes = require('./policy management - mishen/routes/policyRoutes');
 const { initializePolicyTables, seedDefaultPolicies } = require('./policy management - mishen/models/policyModel');
 const authRoutes = require('./authentication-authorization-charuka/routes/authRoutes');
@@ -19,6 +21,7 @@ const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:5173,ht
   .map((origin) => origin.trim());
 
 app.set('trust proxy', 1);
+app.use(helmet());
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
   res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -34,6 +37,7 @@ app.use(cors({
 }));
 app.use('/api/compliance', complianceRoutes);
 app.use('/api', policyRoutes);
+app.use('/api/auth/login', rateLimit({ windowMs: 15 * 60 * 1000, limit: 8, standardHeaders: 'draft-8', legacyHeaders: false }));
 app.use('/api', authRoutes);
 app.use('/api', trainingRoutes);
 app.use('/api/incidents', incidentRoutes);

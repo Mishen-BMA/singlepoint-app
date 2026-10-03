@@ -15,6 +15,11 @@ function validateModule({ title, category, durationMin, content }) {
     typeof content === 'string' && content.trim().length >= 10;
 }
 
+function validTargetRoles(targetRoles) {
+  return targetRoles === undefined || (Array.isArray(targetRoles) &&
+    targetRoles.every((role) => ['admin', 'manager', 'staff'].includes(role)));
+}
+
 function validateQuizQuestion({ question, options, correctIndex }) {
   return typeof question === 'string' && question.trim().length >= 8 &&
     Array.isArray(options) && options.length >= 2 && options.length <= 6 &&
@@ -23,12 +28,12 @@ function validateQuizQuestion({ question, options, correctIndex }) {
 }
 
 async function createModule(req, res) {
-  const { title, category, durationMin, content } = req.body;
-  if (!validateModule({ title, category, durationMin, content })) {
+  const { title, category, durationMin, content, targetRoles = [] } = req.body;
+  if (!validateModule({ title, category, durationMin, content }) || !validTargetRoles(targetRoles)) {
     return res.status(400).json({ error: 'Provide a title, category, lesson content, and duration from 1 to 240 minutes' });
   }
   try {
-    const module = await createTrainingModule({ title: title.trim(), category: category.trim(), durationMin: Number(durationMin), content: content.trim() });
+    const module = await createTrainingModule({ title: title.trim(), category: category.trim(), durationMin: Number(durationMin), content: content.trim(), targetRoles });
     res.status(201).json(module);
   } catch (error) {
     console.error(error.message);
@@ -38,12 +43,12 @@ async function createModule(req, res) {
 
 async function updateModule(req, res) {
   const id = Number(req.params.id);
-  const { title, category, durationMin, content } = req.body;
-  if (!Number.isInteger(id) || id < 1 || !validateModule({ title, category, durationMin, content })) {
+  const { title, category, durationMin, content, targetRoles = [] } = req.body;
+  if (!Number.isInteger(id) || id < 1 || !validateModule({ title, category, durationMin, content }) || !validTargetRoles(targetRoles)) {
     return res.status(400).json({ error: 'Provide a valid module and complete module details' });
   }
   try {
-    const module = await updateTrainingModule(id, { title: title.trim(), category: category.trim(), durationMin: Number(durationMin), content: content.trim() });
+    const module = await updateTrainingModule(id, { title: title.trim(), category: category.trim(), durationMin: Number(durationMin), content: content.trim(), targetRoles });
     if (!module) return res.status(404).json({ error: 'Training module not found' });
     res.json(module);
   } catch (error) {
@@ -123,7 +128,7 @@ async function submitSurvey(req, res) {
 async function listModules(req, res) {
   try {
     const r = await db.query(
-      `SELECT m.id, m.title, m.category, m.duration_min,
+      `SELECT m.id, m.title, m.category, m.duration_min, m.target_roles, m.created_at,
         (SELECT MAX(sr.answered_at) FROM survey_responses sr
          JOIN survey_questions sq ON sq.id = sr.question_id
          WHERE sr.user_id = $1 AND sr.answer = sq.weak_answer AND sq.module_id = m.id) AS recommended_at,
@@ -139,13 +144,19 @@ async function listModules(req, res) {
        FROM training_modules m
        ORDER BY m.id`,
       [req.user.id]);
-    res.json(r.rows.map((module) => ({
-      ...module,
-      recommended: Boolean(module.recommended),
-      completed: Boolean(module.completed),
-      overdue: Boolean(module.recommended) && !Boolean(module.completed) &&
-        Date.parse(module.recommended_at) <= Date.now() - 30 * 24 * 60 * 60 * 1000
-    })));
+    res.json(r.rows.map((module) => {
+      const roleRecommended = (module.target_roles || '').split(',').includes(req.user.role);
+      const recommended = Boolean(module.recommended) || roleRecommended;
+      const recommendedAt = module.recommended_at || (roleRecommended ? module.created_at : null);
+      return {
+        ...module,
+        recommended,
+        recommended_at: recommendedAt,
+        completed: Boolean(module.completed),
+        overdue: recommended && !Boolean(module.completed) &&
+          Date.parse(recommendedAt) <= Date.now() - 30 * 24 * 60 * 60 * 1000
+      };
+    }));
   } catch (e) {
     console.error(e.message);
     res.status(500).json({ error: 'Server error' });
@@ -157,7 +168,7 @@ async function getModule(req, res) {
   if (!Number.isInteger(id)) return res.status(400).json({ error: 'Invalid id' });
   try {
     const r = await db.query(
-      'SELECT id, title, category, duration_min, content FROM training_modules WHERE id = $1', [id]);
+      'SELECT id, title, category, duration_min, content, target_roles FROM training_modules WHERE id = $1', [id]);
     if (r.rows.length === 0) return res.status(404).json({ error: 'Module not found' });
     res.json(r.rows[0]);
   } catch (e) {
@@ -217,7 +228,7 @@ async function submitQuiz(req, res) {
 async function myProgress(req, res) {
   try {
     const r = await db.query(
-                  `SELECT m.id AS module_id, m.title,
+                  `SELECT m.id AS module_id, m.title, m.target_roles, m.created_at,
                           (SELECT MAX(sr.answered_at) FROM survey_responses sr
                            JOIN survey_questions sq ON sq.id = sr.question_id
                            WHERE sr.user_id = $1 AND sr.answer = sq.weak_answer AND sq.module_id = m.id) AS recommended_at,
@@ -232,13 +243,19 @@ async function myProgress(req, res) {
        LEFT JOIN quiz_attempts qa ON qa.module_id = m.id AND qa.user_id = $1
        GROUP BY m.id, m.title ORDER BY m.id`,
       [req.user.id]);
-    res.json(r.rows.map((row) => ({
-      ...row,
-      recommended: Boolean(row.recommended),
-      completed: Number(row.completed) === 1,
-      overdue: Boolean(row.recommended) && Number(row.completed) !== 1 &&
-        Date.parse(row.recommended_at) <= Date.now() - 30 * 24 * 60 * 60 * 1000
-    })));
+    res.json(r.rows.map((row) => {
+      const roleRecommended = (row.target_roles || '').split(',').includes(req.user.role);
+      const recommended = Boolean(row.recommended) || roleRecommended;
+      const recommendedAt = row.recommended_at || (roleRecommended ? row.created_at : null);
+      return {
+        ...row,
+        recommended,
+        recommended_at: recommendedAt,
+        completed: Number(row.completed) === 1,
+        overdue: recommended && Number(row.completed) !== 1 &&
+          Date.parse(recommendedAt) <= Date.now() - 30 * 24 * 60 * 60 * 1000
+      };
+    }));
   } catch (e) {
     console.error(e.message);
     res.status(500).json({ error: 'Server error' });

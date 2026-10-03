@@ -26,6 +26,7 @@ async function initializePolicyTables() {
 
 async function seedDefaultPolicies() {
   const policies = [
+    ['Acceptable Use Policy', 'Use SinglePoint and company systems only for authorized business activity. Every person must use their own account and must never share credentials. Passwords must be at least 12 characters; the system stores passwords as bcrypt hashes. Sessions expire after 30 minutes of inactivity. Acknowledge current policies, complete required training, and report suspected security incidents promptly. Required policies and training become overdue after 30 days. Training quizzes require a score of at least 70% to pass. Staff may access their own records; managers may review team compliance and incidents; admins manage accounts, policies, and training.'],
     ['Remote Access & AnyDesk Usage Policy', 'Use individual credentials for remote access. Never accept unexpected connection requests, share passwords, or leave a session open. Report suspicious attempts.'],
     ['Password & Credential Handling Policy', 'Use unique passwords. Never store client credentials in personal notes or share them over WhatsApp. Use only approved secure storage and sharing channels.'],
     ['Incident Reporting Procedure', 'Promptly report suspicious requests, lost devices, exposed credentials, and policy violations. Include what happened, when, affected systems, and actions taken.'],

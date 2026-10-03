@@ -1,5 +1,9 @@
 const jwt = require('jsonwebtoken');
-const { findUserById } = require('../models/userModel');
+const {
+  findUserById,
+  findAuthSession,
+  refreshAuthSession
+} = require('../models/userModel');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -14,9 +18,9 @@ if (!JWT_SECRET) {
 // and the next request is rejected.
 const SESSION_TIMEOUT_SECONDS = 30 * 60;
 
-function issueToken(user) {
+function issueToken(user, sessionId) {
   return jwt.sign(
-    { id: user.id, role: user.role },
+    { id: user.id, role: user.role, jti: sessionId },
     JWT_SECRET,
     { expiresIn: SESSION_TIMEOUT_SECONDS }
   );
@@ -33,12 +37,16 @@ async function requireUser(req, res, next) {
   try {
     const payload = jwt.verify(token, JWT_SECRET);
     const user = await findUserById(payload.id);
-    if (!user) {
+    const session = payload.jti ? await findAuthSession(payload.jti, payload.id) : null;
+    if (!user || !user.is_active || !session) {
       return res.status(401).json({ error: 'Invalid or expired session' });
     }
     req.user = { id: user.id, role: user.role };
 
-    res.setHeader('X-Auth-Token', issueToken(req.user));
+    const expiresAt = new Date(Date.now() + SESSION_TIMEOUT_SECONDS * 1000).toISOString();
+    await refreshAuthSession(payload.jti, expiresAt);
+    req.sessionId = payload.jti;
+    res.setHeader('X-Auth-Token', issueToken(req.user, payload.jti));
     return next();
   } catch (error) {
     return res.status(401).json({ error: 'Invalid or expired session' });

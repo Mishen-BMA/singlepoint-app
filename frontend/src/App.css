@@ -335,6 +335,21 @@ td small { color: #8992aa; display: block; margin-top: 4px; }
 .status-control { color: #8992aa; display: grid; font-size: 11px; gap: 5px; min-width: 140px; }
 .user-layout { grid-template-columns: minmax(260px, 0.8fr) minmax(320px, 1.2fr); }
 .user-row select { max-width: 145px; }
+.user-row-inactive { opacity: 0.65; }
+.severity-label { color: #aab2c4; display: inline-block; font-size: 10px; margin-left: 8px; text-transform: uppercase; }
+.severity-high, .severity-critical { color: #ff7184; }
+.severity-low { color: #43d6a0; }
+.status-open { border-color: #4b3d23; color: #ffbd59; }
+.status-investigating { border-color: #3f5278; color: #9bbcff; }
+.privacy-notice, .account-settings { max-width: 700px; }
+.privacy-notice p, .privacy-copy p { color: #aab2c4; line-height: 1.65; }
+.privacy-details { border-left: 2px solid #e0166f; color: #aab2c4; font-size: 12px; margin: 0 0 22px; padding: 4px 0 4px 12px; }
+.privacy-details summary { color: #ff4f9a; cursor: pointer; font-weight: 600; }
+.privacy-copy { line-height: 1.5; padding-top: 8px; }
+.target-roles { border: 1px solid #28334c; display: flex; flex-wrap: wrap; gap: 16px; padding: 12px; }
+.target-roles legend { color: #a0a8bd; font-size: 12px; font-weight: 600; padding: 0 4px; }
+.target-roles label { align-items: center; color: #c1c7d6; display: flex; gap: 7px; text-transform: capitalize; }
+.target-roles input { accent-color: #e0166f; }
 .role-label { color: #ff4f9a; font-size: 12px; text-transform: capitalize; }
 .sr-only { clip: rect(0, 0, 0, 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
 

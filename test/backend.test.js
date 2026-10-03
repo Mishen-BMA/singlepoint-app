@@ -8,6 +8,7 @@ process.env.FRONTEND_ORIGIN = 'http://localhost:5173,http://127.0.0.1:5173';
 const bcrypt = require('bcrypt');
 const db = require('../models/db');
 const { startServer } = require('../server');
+const { initializeIncidentTable } = require('../compliance-reporting-incidents-sadini/models/incidentModel');
 const { createUser } = require('../authentication-authorization-charuka/models/userModel');
 
 test('authenticated proposal workflows work end to end', async () => {
@@ -52,8 +53,28 @@ test('authenticated proposal workflows work end to end', async () => {
     const staffHeaders = { Authorization: `Bearer ${staffToken}`, 'Content-Type': 'application/json' };
     const managerHeaders = { Authorization: `Bearer ${managerToken}`, 'Content-Type': 'application/json' };
     const adminHeaders = { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' };
+    let response;
 
-    let response = await fetch(base.replace('/api', '/'), { headers: { Origin: 'http://localhost:5173' } });
+    response = await fetch(`${base}/training/modules`, { headers: managerHeaders });
+    const managerModules = await response.json();
+    assert.equal(managerModules.find((module) => module.title === 'How to Report an Incident').recommended, true);
+    response = await fetch(`${base}/training/modules`, { headers: staffHeaders });
+    const staffModules = await response.json();
+    assert.equal(staffModules.find((module) => module.title === 'How to Report an Incident').recommended, false);
+
+    response = await fetch(`${base}/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'missing@example.test', password: 'Not-The-Password' })
+    });
+    assert.equal(response.status, 401);
+    response = await fetch(`${base}/auth/events`, { headers: managerHeaders });
+    assert.equal(response.status, 200);
+    assert.ok((await response.json()).some((event) => event.action === 'login_failed'));
+    response = await fetch(`${base}/auth/events`, { headers: staffHeaders });
+    assert.equal(response.status, 403);
+
+    response = await fetch(base.replace('/api', '/'), { headers: { Origin: 'http://localhost:5173' } });
+    assert.equal(response.headers.get('x-content-type-options'), 'nosniff');
     assert.equal(response.headers.get('access-control-allow-origin'), 'http://localhost:5173');
     response = await fetch(base.replace('/api', '/'), { headers: { Origin: 'http://127.0.0.1:5173' } });
     assert.equal(response.headers.get('access-control-allow-origin'), 'http://127.0.0.1:5173');
@@ -63,7 +84,13 @@ test('authenticated proposal workflows work end to end', async () => {
 
     response = await fetch(`${base}/policies`, { headers: staffHeaders });
     const policies = await response.json();
-    assert.equal(policies.length, 4);
+    assert.equal(policies.length, 5);
+    const acceptableUsePolicy = policies.find((policy) => policy.title === 'Acceptable Use Policy');
+    assert.match(acceptableUsePolicy.content, /30 minutes/i);
+    assert.match(acceptableUsePolicy.content, /12 characters/i);
+    assert.match(acceptableUsePolicy.content, /bcrypt/i);
+    assert.match(acceptableUsePolicy.content, /70%/);
+    assert.match(acceptableUsePolicy.content, /30 days/i);
     assert.equal(policies[0].compliant, false);
 
     response = await fetch(`${base}/policies/acknowledge`, {
@@ -89,7 +116,7 @@ test('authenticated proposal workflows work end to end', async () => {
     assert.equal(roster.find((entry) => Number(entry.user_id) === Number(staff.id)).compliant, true);
     response = await fetch(`${base}/compliance/${staff.id}`, { headers: staffHeaders });
     assert.equal(response.status, 200);
-    assert.equal((await response.json()).policies.length, 4);
+    assert.equal((await response.json()).policies.length, 5);
     response = await fetch(`${base}/compliance/${admin.id}`, { headers: staffHeaders });
     assert.equal(response.status, 403);
 
@@ -145,18 +172,21 @@ test('authenticated proposal workflows work end to end', async () => {
 
     response = await fetch(`${base}/incidents`, {
       method: 'POST', headers: staffHeaders,
-      body: JSON.stringify({ user_id: admin.id, incident_type: 'Lost Device', title: 'Lost work phone', description: 'A work phone was lost during the commute.' })
+      body: JSON.stringify({ user_id: admin.id, incident_type: 'Lost Device', title: 'Lost work phone', description: 'A work phone was lost during the commute.', severity: 'Critical' })
     });
     assert.equal(response.status, 201);
     const report = (await response.json()).incident;
     assert.equal(Number(report.user_id), Number(staff.id));
+    assert.equal(report.severity, 'Critical');
     response = await fetch(`${base}/incidents?user_id=${admin.id}`, { headers: staffHeaders });
     assert.equal(response.status, 403);
     response = await fetch(`${base}/incidents/${report.id}`, {
-      method: 'PATCH', headers: managerHeaders, body: JSON.stringify({ status: 'Resolved', reviewed_by: staff.id })
+      method: 'PATCH', headers: managerHeaders, body: JSON.stringify({ status: 'Investigating', severity: 'High', reviewed_by: staff.id })
     });
     assert.equal(response.status, 200);
-    assert.equal(Number((await response.json()).incident.reviewed_by), Number(manager.id));
+    const updatedReport = (await response.json()).incident;
+    assert.equal(Number(updatedReport.reviewed_by), Number(manager.id));
+    assert.equal(updatedReport.status, 'Investigating');
 
     response = await fetch(`${base}/compliance/overview`, { headers: managerHeaders });
     const overview = await response.json();
@@ -183,6 +213,75 @@ test('authenticated proposal workflows work end to end', async () => {
     response = await fetch(`${base}/compliance/overview`, { headers: staffHeaders });
     assert.equal(response.status, 200);
     assert.equal(response.headers.get('x-auth-token') !== null, true);
+
+    response = await fetch(`${base}/auth/password`, {
+      method: 'PATCH', headers: staffHeaders,
+      body: JSON.stringify({ currentPassword: 'Staff-Password-2026!', newPassword: 'Staff-New-Password-2026!' })
+    });
+    assert.equal(response.status, 200);
+    response = await fetch(`${base}/auth/me`, { headers: staffHeaders });
+    assert.equal(response.status, 401);
+
+    response = await fetch(`${base}/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'staff@example.test', password: 'Staff-Password-2026!' })
+    });
+    assert.equal(response.status, 401);
+    const newStaffToken = await login('staff@example.test', 'Staff-New-Password-2026!');
+    response = await fetch(`${base}/auth/logout`, {
+      method: 'POST', headers: { Authorization: `Bearer ${newStaffToken}` }
+    });
+    assert.equal(response.status, 200);
+    response = await fetch(`${base}/auth/me`, { headers: { Authorization: `Bearer ${newStaffToken}` } });
+    assert.equal(response.status, 401);
+
+    response = await fetch(`${base}/auth/events`, { headers: adminHeaders });
+    const events = await response.json();
+    assert.ok(events.some((event) => event.action === 'password_changed'));
+    assert.ok(events.some((event) => event.action === 'logout'));
+
+    response = await fetch(`${base}/users/${staff.id}/active`, {
+      method: 'PATCH', headers: adminHeaders, body: JSON.stringify({ isActive: false })
+    });
+    assert.equal(response.status, 200);
+    response = await fetch(`${base}/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'staff@example.test', password: 'Staff-New-Password-2026!' })
+    });
+    assert.equal(response.status, 401);
+
+    response = await fetch(`${base}/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'blocked@example.test', password: 'Wrong-Password-2026!' })
+    });
+    assert.equal(response.status, 401);
+    response = await fetch(`${base}/auth/login`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'blocked@example.test', password: 'Wrong-Password-2026!' })
+    });
+    assert.equal(response.status, 429);
+
+    await db.query('DROP TABLE incidents');
+    await db.query(`CREATE TABLE incidents (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      user_id INTEGER NOT NULL REFERENCES users(id),
+      incident_type TEXT NOT NULL,
+      title TEXT NOT NULL,
+      description TEXT NOT NULL,
+      reported_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+      status TEXT NOT NULL DEFAULT 'Pending' CHECK (status IN ('Pending', 'Under Review', 'Resolved')),
+      reviewed_by INTEGER REFERENCES users(id),
+      reviewed_at TEXT
+    )`);
+    await db.query(
+      `INSERT INTO incidents (user_id, incident_type, title, description, status)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [admin.id, 'Other', 'Legacy report', 'A legacy report used an old status.', 'Under Review']
+    );
+    await initializeIncidentTable();
+    const migratedIncident = await db.query('SELECT status, severity FROM incidents WHERE title = $1', ['Legacy report']);
+    assert.equal(migratedIncident.rows[0].status, 'Investigating');
+    assert.equal(migratedIncident.rows[0].severity, 'Medium');
   } finally {
     await new Promise((resolve) => server.close(resolve));
     await db.end();

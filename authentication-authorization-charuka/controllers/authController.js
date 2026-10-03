@@ -1,10 +1,19 @@
 const bcrypt = require('bcrypt');
+const crypto = require('node:crypto');
 const {
   findUserByEmail,
   findUserById,
   createUser,
   getAllUsers,
-  updateUserRole
+  updateUserRole,
+  changePassword,
+  setUserActive,
+  getActiveAdminCount,
+  getLoginEvents,
+  createAuthSession,
+  revokeAuthSession,
+  revokeUserSessions,
+  recordLoginEvent
 } = require('../models/userModel');
 const { issueToken } = require('../middleware/auth');
 
@@ -20,18 +29,17 @@ async function login(req, res) {
 
   try {
     const user = await findUserByEmail(email.trim().toLowerCase());
-    if (!user) {
-      // Same error for "no such user" and "wrong password" — don't leak
-      // which one it was.
-      return res.status(401).json({ error: 'Invalid email or password' });
-    }
-
-    const passwordMatches = await bcrypt.compare(password, user.password_hash);
+    const passwordMatches = user && user.is_active && await bcrypt.compare(password, user.password_hash);
     if (!passwordMatches) {
+      await recordLoginEvent({ action: 'login_failed', ipAddress: req.ip, userAgent: req.get('user-agent') });
       return res.status(401).json({ error: 'Invalid email or password' });
     }
 
-    const token = issueToken(user);
+    const sessionId = crypto.randomUUID();
+    const expiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    await createAuthSession(sessionId, user.id, expiresAt);
+    await recordLoginEvent({ userId: user.id, action: 'login_succeeded', ipAddress: req.ip, userAgent: req.get('user-agent') });
+    const token = issueToken(user, sessionId);
     res.json({
       token,
       user: { id: user.id, name: user.name, email: user.email, role: user.role }
@@ -54,10 +62,30 @@ async function me(req, res) {
 }
 
 async function logout(req, res) {
-  // JWTs are stateless — there's nothing server-side to invalidate. This
-  // endpoint exists so the frontend has a clean call to make; the real
-  // logout is the client discarding its stored token.
+  await revokeAuthSession(req.sessionId);
+  await recordLoginEvent({ userId: req.user.id, action: 'logout', ipAddress: req.ip, userAgent: req.get('user-agent') });
   res.json({ message: 'Logged out' });
+}
+
+async function changeOwnPassword(req, res) {
+  const { currentPassword, newPassword } = req.body;
+  if (typeof currentPassword !== 'string' || typeof newPassword !== 'string' ||
+      newPassword.length < 12 || Buffer.byteLength(newPassword, 'utf8') > 72) {
+    return res.status(400).json({ error: 'Current password and a new password of 12-72 bytes are required' });
+  }
+  try {
+    const user = await findUserById(req.user.id);
+    const userWithHash = await findUserByEmail(user.email);
+    if (!await bcrypt.compare(currentPassword, userWithHash.password_hash)) {
+      return res.status(400).json({ error: 'Current password is incorrect' });
+    }
+    await changePassword(req.user.id, await bcrypt.hash(newPassword, SALT_ROUNDS));
+    await revokeUserSessions(req.user.id);
+    await recordLoginEvent({ userId: req.user.id, action: 'password_changed', ipAddress: req.ip, userAgent: req.get('user-agent') });
+    res.json({ message: 'Password changed. Sign in again with your new password.' });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to change password' });
+  }
 }
 
 // Admin-only: creates individual staff accounts, replacing the single
@@ -116,6 +144,10 @@ async function changeUserRole(req, res) {
     return res.status(400).json({ error: 'You cannot remove your own admin access' });
   }
   try {
+    const target = await findUserById(userId);
+    if (target?.is_active && target.role === 'admin' && role !== 'admin' && await getActiveAdminCount() <= 1) {
+      return res.status(409).json({ error: 'At least one active admin account must remain' });
+    }
     const user = await updateUserRole(userId, role);
     if (!user) return res.status(404).json({ error: 'User not found' });
     res.json(user);
@@ -124,4 +156,34 @@ async function changeUserRole(req, res) {
   }
 }
 
-module.exports = { login, me, logout, registerUser, listUsers, changeUserRole };
+async function setUserStatus(req, res) {
+  const userId = Number(req.params.id);
+  const { isActive } = req.body;
+  if (!Number.isInteger(userId) || userId < 1 || typeof isActive !== 'boolean' ||
+      (String(userId) === String(req.user.id) && !isActive)) {
+    return res.status(400).json({ error: 'A valid user id and active state are required; you cannot deactivate your own account' });
+  }
+  try {
+    const target = await findUserById(userId);
+    if (!target) return res.status(404).json({ error: 'User not found' });
+    if (!isActive && target.is_active && target.role === 'admin' && await getActiveAdminCount() <= 1) {
+      return res.status(409).json({ error: 'At least one active admin account must remain' });
+    }
+    const user = await setUserActive(userId, isActive);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    if (!isActive) await revokeUserSessions(userId);
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update account status' });
+  }
+}
+
+async function listLoginEvents(req, res) {
+  try {
+    res.json(await getLoginEvents());
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch login events' });
+  }
+}
+
+module.exports = { login, me, logout, registerUser, listUsers, changeUserRole, changeOwnPassword, setUserStatus, listLoginEvents };

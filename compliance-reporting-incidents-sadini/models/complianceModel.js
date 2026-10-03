@@ -41,13 +41,20 @@ async function getStaffComplianceRows() {
       (SELECT MAX(answered_at) FROM survey_responses WHERE user_id = u.id) AS last_survey_at,
       (1 + (SELECT COUNT(DISTINCT sq.module_id) FROM survey_questions sq
        JOIN survey_responses sr ON sr.question_id = sq.id
-       WHERE sr.user_id = u.id AND sr.answer = sq.weak_answer)) AS total_training,
+       WHERE sr.user_id = u.id AND sr.answer = sq.weak_answer)
+       + (SELECT COUNT(DISTINCT m.id) FROM training_modules m
+          WHERE m.target_roles LIKE '%' || u.role || '%'
+            AND NOT EXISTS (
+              SELECT 1 FROM survey_questions sq
+              JOIN survey_responses sr ON sr.question_id = sq.id
+              WHERE sr.user_id = u.id AND sr.answer = sq.weak_answer AND sq.module_id = m.id
+            ))) AS total_training,
       ((SELECT COUNT(DISTINCT m.id) FROM training_modules m
-       WHERE EXISTS (
+       WHERE (m.target_roles LIKE '%' || u.role || '%' OR EXISTS (
          SELECT 1 FROM survey_responses sr
          JOIN survey_questions sq ON sq.id = sr.question_id
          WHERE sr.user_id = u.id AND sr.answer = sq.weak_answer AND sq.module_id = m.id
-       ) AND EXISTS (
+       )) AND EXISTS (
          SELECT 1 FROM quiz_attempts q
          WHERE q.module_id = m.id AND q.user_id = u.id AND q.passed = TRUE
        )) + CASE WHEN (SELECT COUNT(*) FROM survey_responses WHERE user_id = u.id)
