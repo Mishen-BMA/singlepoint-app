@@ -37,7 +37,7 @@ Requirements: Node.js 20 or newer and npm. SQLite is used automatically for loca
 	cd ..
 	```
 
-2. Create a root `.env` file with a strong random `JWT_SECRET`. Local SQLite defaults to `./data/singlepoint.sqlite`, or set `DATABASE_URL=sqlite:./data/singlepoint.sqlite`. For PostgreSQL, use a `postgresql://` connection string. Set `FRONTEND_ORIGIN=http://localhost:3000` for local development.
+2. Create a root `.env` file with a strong random `JWT_SECRET`. Local SQLite defaults to `./data/singlepoint.sqlite`, or set `DATABASE_URL=sqlite:./data/singlepoint.sqlite`. For PostgreSQL, use a `postgresql://` connection string. Set `FRONTEND_ORIGIN=http://localhost:5173` for local development.
 
 3. Create the first administrator without storing a default password in source control. Set `SEED_ADMIN_NAME`, `SEED_ADMIN_EMAIL`, and a unique `SEED_ADMIN_PASSWORD` of at least 12 characters in `.env`, then run:
 

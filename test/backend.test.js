@@ -3,7 +3,7 @@ const { test } = require('node:test');
 
 process.env.DATABASE_URL = 'sqlite::memory:';
 process.env.JWT_SECRET = 'test-only-secret-that-is-not-used-outside-tests';
-process.env.FRONTEND_ORIGIN = 'http://localhost:3000';
+process.env.FRONTEND_ORIGIN = 'http://localhost:5173';
 
 const bcrypt = require('bcrypt');
 const db = require('../models/db');
@@ -53,10 +53,13 @@ test('authenticated proposal workflows work end to end', async () => {
     const managerHeaders = { Authorization: `Bearer ${managerToken}`, 'Content-Type': 'application/json' };
     const adminHeaders = { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' };
 
+    let response = await fetch(base.replace('/api', '/'), { headers: { Origin: 'http://localhost:5173' } });
+    assert.equal(response.headers.get('access-control-allow-origin'), 'http://localhost:5173');
+
     const forged = await fetch(`${base}/policies`, { headers: { 'x-user-id': '1', 'x-user-role': 'admin' } });
     assert.equal(forged.status, 401);
 
-    let response = await fetch(`${base}/policies`, { headers: staffHeaders });
+    response = await fetch(`${base}/policies`, { headers: staffHeaders });
     const policies = await response.json();
     assert.equal(policies.length, 4);
     assert.equal(policies[0].compliant, false);
