@@ -86,6 +86,10 @@ function TrainingCenter({ user }) {
       const details = await api(`/training/modules/${module.id}`);
       setEditingModuleId(module.id);
       setModuleForm({ title: details.title, category: details.category, durationMin: details.duration_min, content: details.content, targetRoles: String(details.target_roles || '').split(',').filter(Boolean) });
+      window.requestAnimationFrame(() => {
+        document.getElementById('training-editor-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        document.getElementById('training-title-input')?.focus();
+      });
     } catch (loadError) { setError(loadError.message); }
   }
 
@@ -158,8 +162,8 @@ function TrainingCenter({ user }) {
           {isAdmin && <section className="data-section">
             <span className="eyebrow">ADMIN CONTENT</span>
             <h2>{editingModuleId ? 'Edit training module' : 'Create training module'}</h2>
-            <form className="stack-form" onSubmit={saveModule}>
-              <label>Title<input value={moduleForm.title} onChange={(event) => setModuleForm({ ...moduleForm, title: event.target.value })} minLength="3" required /></label>
+            <form id="training-editor-form" className="stack-form" onSubmit={saveModule}>
+              <label>Title<input id="training-title-input" value={moduleForm.title} onChange={(event) => setModuleForm({ ...moduleForm, title: event.target.value })} minLength="3" required /></label>
               <label>Category<input value={moduleForm.category} onChange={(event) => setModuleForm({ ...moduleForm, category: event.target.value })} minLength="2" required /></label>
               <fieldset className="target-roles"><legend>Required for roles</legend>{[['ceo', 'CEO'], ['manager', 'Manager'], ['software_engineer', 'Software Engineer'], ['hr', 'HR'], ['data_science', 'Data Analyst / Data Science']].map(([role, label]) => <label key={role}><input type="checkbox" checked={moduleForm.targetRoles.includes(role)} onChange={(event) => setModuleForm({ ...moduleForm, targetRoles: event.target.checked ? [...moduleForm.targetRoles, role] : moduleForm.targetRoles.filter((target) => target !== role) })} />{label}</label>)}</fieldset>
               <label>Duration in minutes<input type="number" min="1" max="240" value={moduleForm.durationMin} onChange={(event) => setModuleForm({ ...moduleForm, durationMin: event.target.value })} required /></label>

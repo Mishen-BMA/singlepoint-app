@@ -51,6 +51,10 @@ function AdminPolicyManager() {
     setContent(policy.content);
     setTargetRoles(policy.targetRoles && policy.targetRoles.length ? policy.targetRoles : POLICY_ROLES.map(([role]) => role));
     setMessage('');
+    window.requestAnimationFrame(() => {
+      document.getElementById('policy-editor-form')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      document.getElementById('policy-title-input')?.focus();
+    });
   }
 
   async function savePolicy(event) {
@@ -127,10 +131,10 @@ function AdminPolicyManager() {
           </div>
           {editingId && <button className="btn-secondary" onClick={resetForm}>Cancel</button>}
         </div>
-        <form onSubmit={savePolicy} className="policy-form">
+        <form id="policy-editor-form" onSubmit={savePolicy} className="policy-form">
           <label>
             Policy title
-            <input value={title} onChange={(event) => setTitle(event.target.value)} required />
+            <input id="policy-title-input" value={title} onChange={(event) => setTitle(event.target.value)} required />
           </label>
           <label>
             Policy content
