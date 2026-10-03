@@ -3,7 +3,7 @@ const { test } = require('node:test');
 
 process.env.DATABASE_URL = 'sqlite::memory:';
 process.env.JWT_SECRET = 'test-only-secret-that-is-not-used-outside-tests';
-process.env.FRONTEND_ORIGIN = 'http://localhost:5173';
+process.env.FRONTEND_ORIGIN = 'http://localhost:5173,http://127.0.0.1:5173';
 
 const bcrypt = require('bcrypt');
 const db = require('../models/db');
@@ -55,6 +55,8 @@ test('authenticated proposal workflows work end to end', async () => {
 
     let response = await fetch(base.replace('/api', '/'), { headers: { Origin: 'http://localhost:5173' } });
     assert.equal(response.headers.get('access-control-allow-origin'), 'http://localhost:5173');
+    response = await fetch(base.replace('/api', '/'), { headers: { Origin: 'http://127.0.0.1:5173' } });
+    assert.equal(response.headers.get('access-control-allow-origin'), 'http://127.0.0.1:5173');
 
     const forged = await fetch(`${base}/policies`, { headers: { 'x-user-id': '1', 'x-user-role': 'admin' } });
     assert.equal(forged.status, 401);
