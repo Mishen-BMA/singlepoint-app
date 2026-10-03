@@ -6,7 +6,6 @@ function Dashboard({ user }) {
   const [overview, setOverview] = useState(null);
   const [trends, setTrends] = useState([]);
   const [recentIncidents, setRecentIncidents] = useState([]);
-  const [loginEvents, setLoginEvents] = useState([]);
   const [personal, setPersonal] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
@@ -16,17 +15,15 @@ function Dashboard({ user }) {
     async function load() {
       try {
         if (isManager) {
-          const [summary, history, incidentData, events] = await Promise.all([
+          const [summary, history, incidentData] = await Promise.all([
             api('/compliance/overview'),
             api('/compliance/trends'),
-            api('/incidents'),
-            api('/auth/events')
+            api('/incidents')
           ]);
           if (active) {
             setOverview(summary);
             setTrends(history);
             setRecentIncidents(incidentData.incidents.slice(0, 3));
-            setLoginEvents(events);
           }
         } else {
           const [policies, training, incidents, reminders, survey] = await Promise.all([
@@ -128,13 +125,6 @@ function Dashboard({ user }) {
               </div>
             ))}</div>
           )}
-        </section>
-        <section className="data-section">
-          <h2>Recent sign-in activity</h2>
-          {loginEvents.length === 0 ? <p>No sign-in events recorded.</p> : <div className="table-scroll"><table>
-            <thead><tr><th>Account</th><th>Event</th><th>Time</th><th>IP address</th></tr></thead>
-            <tbody>{loginEvents.map((event) => <tr key={event.id}><td>{event.user_name || 'Unmatched account'}</td><td>{event.action.replaceAll('_', ' ')}</td><td>{new Date(event.occurred_at).toLocaleString()}</td><td>{event.ip_address || '-'}</td></tr>)}</tbody>
-          </table></div>}
         </section>
       </div>
     );

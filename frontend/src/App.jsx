@@ -2,6 +2,7 @@ import './App.css';
 import { useEffect, useState } from 'react';
 import AdminPolicyManager from './AdminPolicyManager';
 import AccountSettings from './AccountSettings';
+import AuditLog from './AuditLog';
 import Dashboard from './Dashboard';
 import IncidentCenter from './IncidentCenter';
 import Login from './Login';
@@ -59,6 +60,7 @@ function App() {
     { id: 'incidents', label: isManagement ? 'Incident reports' : 'Report an incident' },
     { id: 'account', label: 'Account security' },
     { id: 'privacy', label: 'Privacy notice' },
+    ...(isManagement ? [{ id: 'audit', label: 'Audit log' }] : []),
     ...(user.role === 'admin' ? [{ id: 'users', label: 'User management' }] : [])
   ];
   const headings = {
@@ -68,7 +70,8 @@ function App() {
     incidents: isManagement ? 'Incident reports' : 'Incident reporting',
     users: 'User management',
     account: 'Account security',
-    privacy: 'Privacy notice'
+    privacy: 'Privacy notice',
+    audit: 'Audit log'
   };
 
   let content;
@@ -80,6 +83,7 @@ function App() {
   else if (screen === 'users' && user.role === 'admin') content = <UserManager />;
   else if (screen === 'account') content = <AccountSettings onSessionEnded={() => { setUser(null); setScreen('dashboard'); }} />;
   else if (screen === 'privacy') content = <PrivacyNotice />;
+  else if (screen === 'audit' && isManagement) content = <AuditLog />;
   else content = <Dashboard user={user} />;
 
   return (
