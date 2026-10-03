@@ -49,7 +49,7 @@ function AdminPolicyManager() {
     setEditingId(policy.id);
     setTitle(policy.title);
     setContent(policy.content);
-    setTargetRoles(policy.targetRoles || POLICY_ROLES.map(([role]) => role));
+    setTargetRoles(policy.targetRoles && policy.targetRoles.length ? policy.targetRoles : POLICY_ROLES.map(([role]) => role));
     setMessage('');
   }
 
