@@ -3,7 +3,8 @@ const {
   findUserByEmail,
   findUserById,
   createUser,
-  getAllUsers
+  getAllUsers,
+  updateUserRole
 } = require('../models/userModel');
 const { issueToken } = require('../middleware/auth');
 
@@ -13,7 +14,7 @@ const ALLOWED_ROLES = ['admin', 'manager', 'staff'];
 async function login(req, res) {
   const { email, password } = req.body;
 
-  if (!email || !password) {
+  if (typeof email !== 'string' || typeof password !== 'string' || !email.trim() || !password || Buffer.byteLength(password, 'utf8') > 72) {
     return res.status(400).json({ error: 'Email and password are required' });
   }
 
@@ -64,14 +65,17 @@ async function logout(req, res) {
 async function registerUser(req, res) {
   const { name, email, password, role } = req.body;
 
-  if (!name || !email || !password || !role) {
+  if (typeof name !== 'string' || typeof email !== 'string' || typeof password !== 'string' || !role) {
     return res.status(400).json({ error: 'name, email, password, and role are required' });
+  }
+  if (name.trim().length < 2 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+    return res.status(400).json({ error: 'Enter a valid name and email address' });
   }
   if (!ALLOWED_ROLES.includes(role)) {
     return res.status(400).json({ error: 'Invalid role' });
   }
-  if (password.length < 8) {
-    return res.status(400).json({ error: 'Password must be at least 8 characters' });
+  if (password.length < 12 || Buffer.byteLength(password, 'utf8') > 72) {
+    return res.status(400).json({ error: 'Password must be 12-72 bytes long' });
   }
 
   try {
@@ -102,4 +106,22 @@ async function listUsers(req, res) {
   }
 }
 
-module.exports = { login, me, logout, registerUser, listUsers };
+async function changeUserRole(req, res) {
+  const userId = Number(req.params.id);
+  const { role } = req.body;
+  if (!Number.isInteger(userId) || userId < 1 || !ALLOWED_ROLES.includes(role)) {
+    return res.status(400).json({ error: 'A valid user id and role are required' });
+  }
+  if (String(userId) === String(req.user.id) && role !== 'admin') {
+    return res.status(400).json({ error: 'You cannot remove your own admin access' });
+  }
+  try {
+    const user = await updateUserRole(userId, role);
+    if (!user) return res.status(404).json({ error: 'User not found' });
+    res.json(user);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update user role' });
+  }
+}
+
+module.exports = { login, me, logout, registerUser, listUsers, changeUserRole };

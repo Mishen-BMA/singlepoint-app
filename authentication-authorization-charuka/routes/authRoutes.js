@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { login, me, logout, registerUser, listUsers } = require('../controllers/authController');
+const { login, me, logout, registerUser, listUsers, changeUserRole } = require('../controllers/authController');
 const { requireUser, requireAdmin } = require('../middleware/auth');
 
 router.post('/auth/login', login);
@@ -11,5 +11,6 @@ router.get('/auth/me', requireUser, me);
 // staff member, no self-registration.
 router.post('/users', requireUser, requireAdmin, registerUser);
 router.get('/users', requireUser, requireAdmin, listUsers);
+router.patch('/users/:id/role', requireUser, requireAdmin, changeUserRole);
 
 module.exports = router;

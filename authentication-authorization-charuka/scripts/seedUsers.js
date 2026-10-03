@@ -3,26 +3,20 @@ const bcrypt = require('bcrypt');
 const db = require('../../models/db');
 const { initializeUserTable, createUser, findUserByEmail } = require('../models/userModel');
 
-// Change these passwords before a real demo/viva if the DB is reachable
-// from outside your machine.
-const SEED_USERS = [
-  { name: 'K.V. Madushan Wijeywardana', email: 'admin@sallelanka.lk', password: 'AdminPass123!', role: 'admin' },
-  { name: 'Chamara Perera', email: 'manager@sallelanka.lk', password: 'ManagerPass123!', role: 'manager' },
-  { name: 'Tharaka Silva', email: 'staff@sallelanka.lk', password: 'StaffPass123!', role: 'staff' }
-];
-
 async function seed() {
   await initializeUserTable();
+  const { SEED_ADMIN_NAME, SEED_ADMIN_EMAIL, SEED_ADMIN_PASSWORD } = process.env;
+  if (!SEED_ADMIN_NAME || !SEED_ADMIN_EMAIL || !SEED_ADMIN_PASSWORD || SEED_ADMIN_PASSWORD.length < 12) {
+    throw new Error('Set SEED_ADMIN_NAME, SEED_ADMIN_EMAIL, and a SEED_ADMIN_PASSWORD of at least 12 characters');
+  }
 
-  for (const seedUser of SEED_USERS) {
-    const existing = await findUserByEmail(seedUser.email);
-    if (existing) {
-      console.log(`Skipping ${seedUser.email} — already exists`);
-      continue;
-    }
-    const passwordHash = await bcrypt.hash(seedUser.password, 10);
-    await createUser({ ...seedUser, passwordHash });
-    console.log(`Created ${seedUser.role}: ${seedUser.email}`);
+  const email = SEED_ADMIN_EMAIL.trim().toLowerCase();
+  const existing = await findUserByEmail(email);
+  if (existing) console.log(`Skipping ${email} — already exists`);
+  else {
+    const passwordHash = await bcrypt.hash(SEED_ADMIN_PASSWORD, 10);
+    await createUser({ name: SEED_ADMIN_NAME.trim(), email, passwordHash, role: 'admin' });
+    console.log(`Created admin: ${email}`);
   }
 
   await db.end();

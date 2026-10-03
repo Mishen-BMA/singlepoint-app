@@ -21,33 +21,21 @@ const ALLOWED_STATUSES = [
 
 async function submitIncident(req, res) {
   try {
-    const {
-      user_id,
-      incident_type,
-      title,
-      description,
-      reported_at
-    } = req.body;
+    const { incident_type, title, description } = req.body;
 
-    if (!user_id) {
-      return res.status(400).json({
-        message: 'user_id is required'
-      });
-    }
-
-    if (!incident_type) {
+    if (typeof incident_type !== 'string' || !incident_type) {
       return res.status(400).json({
         message: 'incident_type is required'
       });
     }
 
-    if (!title) {
+    if (typeof title !== 'string' || !title) {
       return res.status(400).json({
         message: 'title is required'
       });
     }
 
-    if (!description) {
+    if (typeof description !== 'string' || !description) {
       return res.status(400).json({
         message: 'description is required'
       });
@@ -72,11 +60,10 @@ async function submitIncident(req, res) {
     }
 
     const incident = await createIncident({
-      userId: user_id,
+      userId: req.user.id,
       incidentType: incident_type,
       title: title.trim(),
-      description: description.trim(),
-      reportedAt: reported_at
+      description: description.trim()
     });
 
     return res.status(201).json({
@@ -97,14 +84,13 @@ async function submitIncident(req, res) {
 async function getIncidents(req, res) {
   try {
     const { user_id } = req.query;
-
-    let incidents;
-
-    if (user_id) {
-      incidents = await getIncidentsByUser(user_id);
-    } else {
-      incidents = await getAllIncidents();
+    const canViewAll = ['admin', 'manager'].includes(req.user.role);
+    if (user_id && !canViewAll && String(user_id) !== String(req.user.id)) {
+      return res.status(403).json({ message: 'You can only view your own incidents' });
     }
+    const incidents = canViewAll && !user_id
+      ? await getAllIncidents()
+      : await getIncidentsByUser(user_id || req.user.id);
 
     return res.status(200).json({
       incidents
@@ -124,10 +110,7 @@ async function changeIncidentStatus(req, res) {
   try {
     const { id } = req.params;
 
-    const {
-      status,
-      reviewed_by
-    } = req.body;
+    const { status } = req.body;
 
     if (!id) {
       return res.status(400).json({
@@ -147,16 +130,10 @@ async function changeIncidentStatus(req, res) {
       });
     }
 
-    if (!reviewed_by) {
-      return res.status(400).json({
-        message: 'reviewed_by is required'
-      });
-    }
-
     const incident = await updateIncidentStatus(
       id,
       status,
-      reviewed_by
+      req.user.id
     );
 
     if (!incident) {

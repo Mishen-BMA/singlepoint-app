@@ -1,11 +1,87 @@
 const db = require('../../models/db');
+const {
+  createQuizQuestion,
+  createTrainingModule,
+  updateQuizQuestion,
+  updateTrainingModule
+} = require('../models/trainingModel');
 
 const PASS_MARK = 0.7;
 
+function validateModule({ title, category, durationMin, content }) {
+  return typeof title === 'string' && title.trim().length >= 3 &&
+    typeof category === 'string' && category.trim().length >= 2 &&
+    Number.isInteger(Number(durationMin)) && Number(durationMin) >= 1 && Number(durationMin) <= 240 &&
+    typeof content === 'string' && content.trim().length >= 10;
+}
+
+function validateQuizQuestion({ question, options, correctIndex }) {
+  return typeof question === 'string' && question.trim().length >= 8 &&
+    Array.isArray(options) && options.length >= 2 && options.length <= 6 &&
+    options.every((option) => typeof option === 'string' && option.trim().length > 0) &&
+    Number.isInteger(Number(correctIndex)) && Number(correctIndex) >= 0 && Number(correctIndex) < options.length;
+}
+
+async function createModule(req, res) {
+  const { title, category, durationMin, content } = req.body;
+  if (!validateModule({ title, category, durationMin, content })) {
+    return res.status(400).json({ error: 'Provide a title, category, lesson content, and duration from 1 to 240 minutes' });
+  }
+  try {
+    const module = await createTrainingModule({ title: title.trim(), category: category.trim(), durationMin: Number(durationMin), content: content.trim() });
+    res.status(201).json(module);
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({ error: 'Failed to create training module' });
+  }
+}
+
+async function updateModule(req, res) {
+  const id = Number(req.params.id);
+  const { title, category, durationMin, content } = req.body;
+  if (!Number.isInteger(id) || id < 1 || !validateModule({ title, category, durationMin, content })) {
+    return res.status(400).json({ error: 'Provide a valid module and complete module details' });
+  }
+  try {
+    const module = await updateTrainingModule(id, { title: title.trim(), category: category.trim(), durationMin: Number(durationMin), content: content.trim() });
+    if (!module) return res.status(404).json({ error: 'Training module not found' });
+    res.json(module);
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({ error: 'Failed to update training module' });
+  }
+}
+
+async function saveQuizQuestion(req, res) {
+  const moduleId = Number(req.params.id);
+  const questionId = req.params.questionId ? Number(req.params.questionId) : null;
+  const { question, options, correctIndex } = req.body;
+  if (!Number.isInteger(moduleId) || moduleId < 1 || (questionId !== null && (!Number.isInteger(questionId) || questionId < 1)) || !validateQuizQuestion({ question, options, correctIndex })) {
+    return res.status(400).json({ error: 'Provide a question, 2-6 options, and a valid correct option index' });
+  }
+  try {
+    const saved = questionId
+      ? await updateQuizQuestion(moduleId, questionId, { question: question.trim(), options, correctIndex: Number(correctIndex) })
+      : await createQuizQuestion(moduleId, { question: question.trim(), options, correctIndex: Number(correctIndex) });
+    if (!saved) return res.status(404).json({ error: 'Quiz question not found' });
+    res.status(questionId ? 200 : 201).json(saved);
+  } catch (error) {
+    console.error(error.message);
+    res.status(500).json({ error: 'Failed to save quiz question' });
+  }
+}
+
 async function getSurvey(req, res) {
   try {
-    const r = await db.query('SELECT id, question FROM survey_questions ORDER BY id');
-    res.json(r.rows);
+    const [questions, responses] = await Promise.all([
+      db.query('SELECT id, question FROM survey_questions ORDER BY id'),
+      db.query('SELECT question_id, answer FROM survey_responses WHERE user_id = $1', [req.user.id])
+    ]);
+    res.json({
+      questions: questions.rows,
+      answers: responses.rows,
+      complete: questions.rowCount > 0 && responses.rowCount === questions.rowCount
+    });
   } catch (e) {
     console.error(e.message);
     res.status(500).json({ error: 'Server error' });
@@ -48,6 +124,9 @@ async function listModules(req, res) {
   try {
     const r = await db.query(
       `SELECT m.id, m.title, m.category, m.duration_min,
+        (SELECT MAX(sr.answered_at) FROM survey_responses sr
+         JOIN survey_questions sq ON sq.id = sr.question_id
+         WHERE sr.user_id = $1 AND sr.answer = sq.weak_answer AND sq.module_id = m.id) AS recommended_at,
         EXISTS (
           SELECT 1 FROM survey_responses sr
           JOIN survey_questions sq ON sq.id = sr.question_id
@@ -60,7 +139,13 @@ async function listModules(req, res) {
        FROM training_modules m
        ORDER BY m.id`,
       [req.user.id]);
-    res.json(r.rows);
+    res.json(r.rows.map((module) => ({
+      ...module,
+      recommended: Boolean(module.recommended),
+      completed: Boolean(module.completed),
+      overdue: Boolean(module.recommended) && !Boolean(module.completed) &&
+        Date.parse(module.recommended_at) <= Date.now() - 30 * 24 * 60 * 60 * 1000
+    })));
   } catch (e) {
     console.error(e.message);
     res.status(500).json({ error: 'Server error' });
@@ -88,7 +173,10 @@ async function getQuiz(req, res) {
   try {
     const r = await db.query(
       'SELECT id, question, options FROM quiz_questions WHERE module_id = $1 ORDER BY id', [id]);
-    res.json(r.rows);
+    res.json(r.rows.map((question) => ({
+      ...question,
+      options: typeof question.options === 'string' ? JSON.parse(question.options) : question.options
+    })));
   } catch (e) {
     console.error(e.message);
     res.status(500).json({ error: 'Server error' });
@@ -129,18 +217,35 @@ async function submitQuiz(req, res) {
 async function myProgress(req, res) {
   try {
     const r = await db.query(
-      `SELECT m.id AS module_id, m.title,
-              BOOL_OR(qa.passed) AS completed,
+                  `SELECT m.id AS module_id, m.title,
+                          (SELECT MAX(sr.answered_at) FROM survey_responses sr
+                           JOIN survey_questions sq ON sq.id = sr.question_id
+                           WHERE sr.user_id = $1 AND sr.answer = sq.weak_answer AND sq.module_id = m.id) AS recommended_at,
+                    EXISTS (
+                SELECT 1 FROM survey_responses sr
+                JOIN survey_questions sq ON sq.id = sr.question_id
+                WHERE sr.user_id = $1 AND sr.answer = sq.weak_answer AND sq.module_id = m.id
+                    ) AS recommended,
+              MAX(CASE WHEN qa.passed = TRUE THEN 1 ELSE 0 END) AS completed,
               MAX(qa.attempted_at) AS last_attempt
        FROM training_modules m
        LEFT JOIN quiz_attempts qa ON qa.module_id = m.id AND qa.user_id = $1
        GROUP BY m.id, m.title ORDER BY m.id`,
       [req.user.id]);
-    res.json(r.rows.map(x => ({ ...x, completed: !!x.completed })));
+    res.json(r.rows.map((row) => ({
+      ...row,
+      recommended: Boolean(row.recommended),
+      completed: Number(row.completed) === 1,
+      overdue: Boolean(row.recommended) && Number(row.completed) !== 1 &&
+        Date.parse(row.recommended_at) <= Date.now() - 30 * 24 * 60 * 60 * 1000
+    })));
   } catch (e) {
     console.error(e.message);
     res.status(500).json({ error: 'Server error' });
   }
 }
 
-module.exports = { getSurvey, submitSurvey, listModules, getModule, getQuiz, submitQuiz, myProgress };
+module.exports = {
+  getSurvey, submitSurvey, listModules, getModule, getQuiz, submitQuiz, myProgress,
+  createModule, updateModule, saveQuizQuestion
+};

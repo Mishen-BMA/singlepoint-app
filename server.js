@@ -1,18 +1,42 @@
+require('dotenv').config();
 const cors = require('cors');
 const policyRoutes = require('./policy management - mishen/routes/policyRoutes');
-const { initializePolicyTables } = require('./policy management - mishen/models/policyModel');
+const { initializePolicyTables, seedDefaultPolicies } = require('./policy management - mishen/models/policyModel');
 const authRoutes = require('./authentication-authorization-charuka/routes/authRoutes');
 const { initializeUserTable } = require('./authentication-authorization-charuka/models/userModel');
 const express = require('express');
 const app = express();
 const trainingRoutes = require('./security-training-awareness-nihara/routes/trainingRoutes');
 const { initializeTrainingTables } = require('./security-training-awareness-nihara/models/trainingModel');
+const incidentRoutes = require('./compliance-reporting-incidents-sadini/routes/incidentRoutes');
+const { initializeIncidentTable } = require('./compliance-reporting-incidents-sadini/models/incidentModel');
+const complianceRoutes = require('./compliance-reporting-incidents-sadini/routes/complianceRoutes');
+const { initializeComplianceTables } = require('./compliance-reporting-incidents-sadini/models/complianceModel');
+const { getStaffComplianceRows, saveComplianceSnapshot } = require('./compliance-reporting-incidents-sadini/models/complianceModel');
 
-app.use(express.json()); // lets our server understand JSON sent from the frontend
-app.use(cors());
+const allowedOrigins = (process.env.FRONTEND_ORIGIN || 'http://localhost:3000')
+  .split(',')
+  .map((origin) => origin.trim());
+
+app.set('trust proxy', 1);
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  if (process.env.NODE_ENV === 'production' && !req.secure) {
+    return res.status(403).json({ error: 'HTTPS is required' });
+  }
+  next();
+});
+app.use(express.json({ limit: '1mb' }));
+app.use(cors({
+  origin: allowedOrigins,
+  exposedHeaders: ['X-Auth-Token']
+}));
+app.use('/api/compliance', complianceRoutes);
 app.use('/api', policyRoutes);
 app.use('/api', authRoutes);
 app.use('/api', trainingRoutes);
+app.use('/api/incidents', incidentRoutes);
 
 app.get('/', (req, res) => {
   res.send('SinglePoint API is running');
@@ -20,13 +44,36 @@ app.get('/', (req, res) => {
 
 const PORT = process.env.PORT || 4000;
 
-Promise.all([initializePolicyTables(), initializeUserTable(), initializeTrainingTables()])
-  .then(() => {
-    app.listen(PORT, () => {
-      console.log(`Server running on http://localhost:${PORT}`);
-    });
-  })
-  .catch((error) => {
-    console.error('Failed to initialize policy tables:', error.message);
+async function startServer(port = PORT) {
+  await initializeUserTable();
+  await initializePolicyTables();
+  await seedDefaultPolicies();
+  await initializeTrainingTables();
+  await initializeIncidentTable();
+  await initializeComplianceTables();
+  await captureComplianceSnapshot();
+  const snapshotTimer = setInterval(() => {
+    captureComplianceSnapshot().catch((error) => console.error('Daily compliance snapshot failed:', error.message));
+  }, 24 * 60 * 60 * 1000);
+  snapshotTimer.unref();
+  return app.listen(port, () => {
+    console.log(`Server running on port ${port}`);
+  });
+}
+
+async function captureComplianceSnapshot() {
+  const staff = await getStaffComplianceRows();
+  const percentage = staff.length
+    ? Math.round(staff.reduce((total, user) => total + user.compliancePercentage, 0) / staff.length)
+    : 0;
+  await saveComplianceSnapshot(percentage);
+}
+
+if (require.main === module) {
+  startServer().catch((error) => {
+    console.error('Failed to initialize database:', error.message);
     process.exit(1);
   });
+}
+
+module.exports = { app, startServer };

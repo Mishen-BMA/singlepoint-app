@@ -1,10 +1,5 @@
 import { useEffect, useState } from 'react';
-
-const API_BASE = 'http://localhost:4000/api';
-const ADMIN_HEADERS = {
-  'x-user-id': '1',
-  'x-user-role': 'admin'
-};
+import { api } from './api';
 
 function AdminPolicyManager() {
   const [policies, setPolicies] = useState([]);
@@ -25,9 +20,7 @@ function AdminPolicyManager() {
     setLoading(true);
     setError('');
     try {
-      const response = await fetch(`${API_BASE}/policies`, { headers: ADMIN_HEADERS });
-      if (!response.ok) throw new Error('Could not load policies');
-      setPolicies(await response.json());
+      setPolicies(await api('/policies'));
     } catch (loadError) {
       setError(loadError.message);
     } finally {
@@ -53,17 +46,14 @@ function AdminPolicyManager() {
     setSaving(true);
     setError('');
     setMessage('');
-    const endpoint = editingId ? `${API_BASE}/policies/${editingId}` : `${API_BASE}/policies`;
+    const endpoint = editingId ? `/policies/${editingId}` : '/policies';
     const method = editingId ? 'PUT' : 'POST';
 
     try {
-      const response = await fetch(endpoint, {
+      const data = await api(endpoint, {
         method,
-        headers: { ...ADMIN_HEADERS, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title, content })
+        body: { title, content }
       });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || 'Could not save policy');
       setMessage(editingId ? `Policy published as version ${data.version}.` : 'Policy published.');
       resetForm();
       await loadPolicies();
@@ -76,11 +66,7 @@ function AdminPolicyManager() {
 
   async function viewAcknowledgements(policyId) {
     try {
-      const response = await fetch(`${API_BASE}/policies/${policyId}/acknowledgements`, {
-        headers: ADMIN_HEADERS
-      });
-      if (!response.ok) throw new Error('Could not load acknowledgements');
-      const data = await response.json();
+      const data = await api(`/policies/${policyId}/acknowledgements`);
       setAcknowledgements((current) => ({ ...current, [policyId]: data }));
     } catch (acknowledgementError) {
       setError(acknowledgementError.message);
@@ -143,10 +129,10 @@ function AdminPolicyManager() {
               </button>
               {acknowledgements[policy.id] && (
                 <div className="acknowledgement-list">
-                  <strong>{acknowledgements[policy.id].length} acknowledgement(s)</strong>
+                    <strong>{acknowledgements[policy.id].filter((entry) => entry.compliant).length}/{acknowledgements[policy.id].length} acknowledged</strong>
                   {acknowledgements[policy.id].map((acknowledgement) => (
-                    <span key={acknowledgement.id}>
-                      User {acknowledgement.user_id} · version {acknowledgement.version_acknowledged} · {new Date(acknowledgement.acknowledged_at).toLocaleString()}
+                    <span key={acknowledgement.user_id}>
+                      {acknowledgement.name} · {acknowledgement.compliant ? `version ${acknowledgement.version_acknowledged} acknowledged` : 'pending'}
                     </span>
                   ))}
                 </div>

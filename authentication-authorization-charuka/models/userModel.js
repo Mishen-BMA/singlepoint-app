@@ -46,10 +46,19 @@ async function getAllUsers() {
   return result.rows;
 }
 
+async function updateUserRole(id, role) {
+  const result = await db.query(
+    'UPDATE users SET role = $1 WHERE id = $2 RETURNING id, name, email, role, created_at',
+    [role, id]
+  );
+  return result.rows[0] || null;
+}
+
 module.exports = {
   initializeUserTable,
   createUser,
   findUserByEmail,
   findUserById,
-  getAllUsers
+  getAllUsers,
+  updateUserRole
 };

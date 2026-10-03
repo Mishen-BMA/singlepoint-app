@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const { findUserById } = require('../models/userModel');
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
@@ -21,7 +22,7 @@ function issueToken(user) {
   );
 }
 
-function requireUser(req, res, next) {
+async function requireUser(req, res, next) {
   const header = req.header('Authorization') || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
 
@@ -31,10 +32,14 @@ function requireUser(req, res, next) {
 
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    req.user = { id: payload.id, role: payload.role };
+    const user = await findUserById(payload.id);
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid or expired session' });
+    }
+    req.user = { id: user.id, role: user.role };
 
     res.setHeader('X-Auth-Token', issueToken(req.user));
-    next();
+    return next();
   } catch (error) {
     return res.status(401).json({ error: 'Invalid or expired session' });
   }
