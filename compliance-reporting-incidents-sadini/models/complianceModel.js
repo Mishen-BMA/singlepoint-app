@@ -28,13 +28,15 @@ async function getStaffComplianceRows() {
        WHERE EXISTS (
          SELECT 1 FROM acknowledgements a
          WHERE a.policy_id = p.id AND a.user_id = u.id
-           AND a.version_acknowledged = p.version
+           AND a.decision = 'agreed' AND a.version_acknowledged = p.version
+           AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = u.id)
        )) AS acknowledged_policies,
       (SELECT MIN(p.updated_at) FROM policies p
        WHERE NOT EXISTS (
          SELECT 1 FROM acknowledgements a
          WHERE a.policy_id = p.id AND a.user_id = u.id
-           AND a.version_acknowledged = p.version
+           AND a.decision = 'agreed' AND a.version_acknowledged = p.version
+           AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = u.id)
        )) AS oldest_pending_policy_at,
       (SELECT COUNT(*) FROM survey_questions) AS total_survey_questions,
       (SELECT COUNT(*) FROM survey_responses WHERE user_id = u.id) AS answered_survey_questions,

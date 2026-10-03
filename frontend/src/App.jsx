@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import AdminPolicyManager from './AdminPolicyManager';
 import AccountSettings from './AccountSettings';
 import AuditLog from './AuditLog';
+import AupGate from './AupGate';
 import Dashboard from './Dashboard';
 import IncidentCenter from './IncidentCenter';
 import Login from './Login';
@@ -25,13 +26,20 @@ function App() {
       setUser(null);
       setScreen('dashboard');
     }
+    function handleAupRequired() {
+      api('/auth/me').then(setUser).catch(() => {});
+    }
     window.addEventListener('singlepoint:unauthorized', handleUnauthorized);
+    window.addEventListener('singlepoint:aup-required', handleAupRequired);
     if (!getToken()) {
       setCheckingSession(false);
     } else {
       api('/auth/me').then(setUser).catch(() => clearToken()).finally(() => setCheckingSession(false));
     }
-    return () => window.removeEventListener('singlepoint:unauthorized', handleUnauthorized);
+    return () => {
+      window.removeEventListener('singlepoint:unauthorized', handleUnauthorized);
+      window.removeEventListener('singlepoint:aup-required', handleAupRequired);
+    };
   }, []);
 
   useEffect(() => {
@@ -49,8 +57,22 @@ function App() {
     setScreen('dashboard');
   }
 
+  function handleAupDeclined() {
+    clearToken();
+    setUser(null);
+    setScreen('dashboard');
+    window.location.replace(import.meta.env.VITE_AUP_DECLINE_URL || 'about:blank');
+  }
+
   if (checkingSession) return <main className="login-screen"><p>Checking session...</p></main>;
   if (!user) return <div className={`app-theme theme-${theme}`}><Login theme={theme} onToggleTheme={toggleTheme} onLogin={(loggedInUser) => { setUser(loggedInUser); setScreen('dashboard'); }} /></div>;
+  if (user.aupPending) {
+    return (
+      <div className={`app-theme theme-${theme}`}>
+        <AupGate onResolved={(updatedUser) => setUser(updatedUser)} onDeclined={handleAupDeclined} />
+      </div>
+    );
+  }
 
   const isManagement = user.role === 'admin' || user.role === 'manager';
   const navigation = [

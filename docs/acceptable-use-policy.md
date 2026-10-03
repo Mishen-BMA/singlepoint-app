@@ -28,6 +28,7 @@ Use SinglePoint and company systems only for authorized business purposes. This 
 ## Policies and training
 
 - Read and acknowledge current policy versions that apply to your work.
+- This Acceptable Use Policy is mandatory: you must read it and respond Agree or Disagree immediately after signing in before you can use any other part of SinglePoint. If you disagree, your session ends immediately and you are signed out. If this policy is updated to a new version, every signed-in user — including administrators — is returned to this prompt on their next action and must respond again before continuing. Every response (agree or disagree) is permanently recorded with the version, decision, timestamp, and originating IP address; administrators can review the complete history for this policy.
 - Complete training recommended by your survey answers or required for your role.
 - A quiz score of at least 70% is required to pass.
 - Required policy acknowledgements, surveys, and training that remain incomplete for 30 days are marked overdue.

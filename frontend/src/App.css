@@ -417,6 +417,22 @@ td small { color: #8992aa; display: block; margin-top: 4px; }
 .target-roles legend { color: #a0a8bd; font-size: 12px; font-weight: 600; padding: 0 4px; }
 .target-roles label { align-items: center; color: #c1c7d6; display: flex; gap: 7px; text-transform: capitalize; }
 .target-roles input { accent-color: #e0166f; }
+.btn-danger { background: #e0166f; border: 1px solid #e0166f; color: #ffffff; cursor: pointer; font-weight: 600; padding: 10px 18px; }
+.btn-danger:hover { background: #c10b5f; }
+.btn-danger:disabled { cursor: wait; opacity: 0.6; }
+.aup-gate-screen { align-items: center; background: #0d1425; display: flex; justify-content: center; min-height: 100vh; padding: 24px; }
+.aup-gate-card { background: #10182c; border: 1px solid #38445e; display: flex; flex-direction: column; gap: 14px; max-height: calc(100vh - 48px); max-width: 680px; padding: 28px; width: 100%; }
+.aup-gate-card h1 { font-family: 'Rajdhani', sans-serif; font-size: 28px; margin: 0; }
+.aup-gate-version { color: #a0a8bd; font-size: 13px; font-weight: 600; margin: 0; text-transform: uppercase; }
+.aup-gate-instructions { color: #c1c7d6; line-height: 1.55; margin: 0; }
+.aup-gate-text { background: rgba(255, 255, 255, 0.03); border: 1px solid #27324b; line-height: 1.65; max-height: 320px; overflow-y: auto; padding: 16px; white-space: pre-wrap; }
+.aup-gate-actions { display: flex; gap: 12px; }
+.aup-gate-confirm p { color: #ff7184; margin: 0 0 12px; }
+.aup-gate-card:focus-visible, .aup-gate-card button:focus-visible, .aup-gate-text:focus-visible { outline: 2px solid #ff4f9a; outline-offset: 3px; }
+.theme-light .aup-gate-screen { background: #f3f5f8; }
+.theme-light .aup-gate-card { background: #ffffff; border-color: #d9dee8; color: #1a2233; }
+.theme-light .aup-gate-text { background: #f8fafc; border-color: #d9dee8; }
+.theme-light .aup-gate-instructions { color: #334155; }
 .role-label { color: #ff4f9a; font-size: 12px; text-transform: capitalize; }
 .sr-only { clip: rect(0, 0, 0, 0); clip-path: inset(50%); height: 1px; overflow: hidden; position: absolute; white-space: nowrap; width: 1px; }
 

@@ -1,4 +1,25 @@
 const db = require('../../models/db');
+const {
+  getPendingGatePolicies,
+  getPolicyById,
+  getLatestAcknowledgement,
+  insertAcknowledgement,
+  getAcknowledgementHistory
+} = require('../models/policyModel');
+const { revokeAuthSession, recordLoginEvent } = require('../../authentication-authorization-charuka/models/userModel');
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+// The latest acknowledgement row (by MAX(id)) for a user+policy pair is that
+// user's current decision. A declined row, or a row acknowledging an old
+// version, must never count as compliant.
+function statusFor({ decision, versionAcknowledged, currentVersion, updatedAt }) {
+  const compliant = decision === 'agreed' && Number(versionAcknowledged) === Number(currentVersion);
+  if (compliant) return { compliant, overdue: false, status: 'acknowledged' };
+  if (decision === 'declined') return { compliant, overdue: false, status: 'declined' };
+  const overdue = Boolean(updatedAt) && Date.parse(updatedAt) <= Date.now() - 30 * DAY_MS;
+  return { compliant, overdue, status: overdue ? 'overdue' : 'pending' };
+}
 
 async function createPolicy(req, res) {
   const { title, content } = req.body;
@@ -24,19 +45,25 @@ async function getAllPolicies(req, res) {
       `SELECT p.*,
         (SELECT a.version_acknowledged FROM acknowledgements a
          WHERE a.policy_id = p.id AND a.user_id = $1
-         ORDER BY a.acknowledged_at DESC, a.id DESC LIMIT 1) AS version_acknowledged,
+           AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = $1)) AS version_acknowledged,
+        (SELECT a.decision FROM acknowledgements a
+         WHERE a.policy_id = p.id AND a.user_id = $1
+           AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = $1)) AS decision,
         (SELECT a.acknowledged_at FROM acknowledgements a
          WHERE a.policy_id = p.id AND a.user_id = $1
-         ORDER BY a.acknowledged_at DESC, a.id DESC LIMIT 1) AS acknowledged_at
+           AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = $1)) AS acknowledged_at
        FROM policies p
        ORDER BY p.created_at DESC`,
       [req.user.id]
     );
     result.rows = result.rows.map((row) => ({
       ...row,
-      compliant: Number(row.version_acknowledged) === Number(row.version),
-      overdue: Number(row.version_acknowledged) !== Number(row.version) &&
-        Date.parse(row.updated_at) <= Date.now() - 30 * 24 * 60 * 60 * 1000
+      ...statusFor({
+        decision: row.decision,
+        versionAcknowledged: row.version_acknowledged,
+        currentVersion: row.version,
+        updatedAt: row.updated_at
+      })
     }));
     res.json(result.rows);
   } catch (error) {
@@ -49,13 +76,16 @@ async function getAcknowledgementsForPolicy(req, res) {
 
   try {
     const result = await db.query(
-      `SELECT u.id AS user_id, u.name, u.email, p.version AS current_version,
+      `SELECT u.id AS user_id, u.name, u.email, p.version AS current_version, p.updated_at,
         (SELECT a.version_acknowledged FROM acknowledgements a
          WHERE a.policy_id = p.id AND a.user_id = u.id
-         ORDER BY a.acknowledged_at DESC, a.id DESC LIMIT 1) AS version_acknowledged,
+           AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = u.id)) AS version_acknowledged,
+        (SELECT a.decision FROM acknowledgements a
+         WHERE a.policy_id = p.id AND a.user_id = u.id
+           AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = u.id)) AS decision,
         (SELECT a.acknowledged_at FROM acknowledgements a
          WHERE a.policy_id = p.id AND a.user_id = u.id
-         ORDER BY a.acknowledged_at DESC, a.id DESC LIMIT 1) AS acknowledged_at
+           AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = u.id)) AS acknowledged_at
        FROM policies p CROSS JOIN users u
        WHERE p.id = $1
        ORDER BY u.name`,
@@ -67,7 +97,12 @@ async function getAcknowledgementsForPolicy(req, res) {
     }
     result.rows = result.rows.map((row) => ({
       ...row,
-      compliant: Number(row.version_acknowledged) === Number(row.current_version)
+      ...statusFor({
+        decision: row.decision,
+        versionAcknowledged: row.version_acknowledged,
+        currentVersion: row.current_version,
+        updatedAt: row.updated_at
+      })
     }));
     res.json(result.rows);
   } catch (error) {
@@ -109,12 +144,15 @@ async function getComplianceStatus(req, res) {
   try {
     const result = await db.query(
       `SELECT p.version AS current_version,
-        (SELECT version_acknowledged FROM acknowledgements a
+        (SELECT a.version_acknowledged FROM acknowledgements a
          WHERE a.policy_id = p.id AND a.user_id = $1
-         ORDER BY a.acknowledged_at DESC, a.id DESC LIMIT 1) AS version_acknowledged,
-        (SELECT acknowledged_at FROM acknowledgements a
+           AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = $1)) AS version_acknowledged,
+        (SELECT a.decision FROM acknowledgements a
          WHERE a.policy_id = p.id AND a.user_id = $1
-         ORDER BY a.acknowledged_at DESC, a.id DESC LIMIT 1) AS acknowledged_at
+           AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = $1)) AS decision,
+        (SELECT a.acknowledged_at FROM acknowledgements a
+         WHERE a.policy_id = p.id AND a.user_id = $1
+           AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = $1)) AS acknowledged_at
        FROM policies p
        WHERE p.id = $2`,
       [userId, policyId]
@@ -123,12 +161,17 @@ async function getComplianceStatus(req, res) {
       return res.status(404).json({ error: 'Policy not found' });
     }
     const row = result.rows[0];
+    const { compliant } = statusFor({
+      decision: row.decision,
+      versionAcknowledged: row.version_acknowledged,
+      currentVersion: row.current_version
+    });
     res.json({
       policyId,
       userId,
       currentVersion: row.current_version,
       versionAcknowledged: row.version_acknowledged || null,
-      compliant: row.version_acknowledged === row.current_version
+      compliant
     });
   } catch (error) {
     res.status(500).json({ error: 'Failed to check compliance' });
@@ -144,9 +187,16 @@ async function acknowledgePolicy(req, res) {
   }
 
   try {
+    const policy = await getPolicyById(policy_id);
+    if (!policy) {
+      return res.status(404).json({ error: 'Policy not found' });
+    }
+    if (policy.requires_gate) {
+      return res.status(409).json({ code: 'USE_GATE_ENDPOINT', error: 'This policy requires the Acceptable Use Policy gate endpoint' });
+    }
     const result = await db.query(
-      `INSERT INTO acknowledgements (policy_id, user_id, version_acknowledged)
-       SELECT id, $1, version FROM policies WHERE id = $2
+      `INSERT INTO acknowledgements (policy_id, user_id, version_acknowledged, decision)
+       SELECT id, $1, version, 'agreed' FROM policies WHERE id = $2
        RETURNING *`,
       [user_id, policy_id]
     );
@@ -168,12 +218,15 @@ async function getUserComplianceOverview(req, res) {
   try {
     const queryResult = await db.query(
       `SELECT p.id AS policy_id, p.title, p.content, p.version AS current_version,
-        (SELECT version_acknowledged FROM acknowledgements a
+        (SELECT a.version_acknowledged FROM acknowledgements a
          WHERE a.policy_id = p.id AND a.user_id = $1
-         ORDER BY a.acknowledged_at DESC, a.id DESC LIMIT 1) AS version_acknowledged,
-        (SELECT acknowledged_at FROM acknowledgements a
+           AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = $1)) AS version_acknowledged,
+        (SELECT a.decision FROM acknowledgements a
          WHERE a.policy_id = p.id AND a.user_id = $1
-         ORDER BY a.acknowledged_at DESC, a.id DESC LIMIT 1) AS acknowledged_at
+           AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = $1)) AS decision,
+        (SELECT a.acknowledged_at FROM acknowledgements a
+         WHERE a.policy_id = p.id AND a.user_id = $1
+           AND a.id = (SELECT MAX(a2.id) FROM acknowledgements a2 WHERE a2.policy_id = p.id AND a2.user_id = $1)) AS acknowledged_at
        FROM policies p
        ORDER BY p.created_at DESC`,
       [userId]
@@ -186,12 +239,96 @@ async function getUserComplianceOverview(req, res) {
       currentVersion: row.current_version,
       versionAcknowledged: row.version_acknowledged || null,
       acknowledgedAt: row.acknowledged_at,
-      compliant: row.version_acknowledged === row.current_version
+      ...statusFor({
+        decision: row.decision,
+        versionAcknowledged: row.version_acknowledged,
+        currentVersion: row.current_version
+      })
     }));
 
     res.json({ userId, policies });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch compliance overview' });
+  }
+}
+
+async function getGatePolicies(req, res) {
+  try {
+    const pending = await getPendingGatePolicies(req.user.id);
+    res.json({ pending });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch gate policies' });
+  }
+}
+
+async function postGateDecision(req, res) {
+  const { policy_id, version, decision } = req.body;
+
+  if (!Number.isFinite(policy_id) || !Number.isFinite(version) || !['agreed', 'declined'].includes(decision)) {
+    return res.status(400).json({ error: 'policy_id, version, and a valid decision are required' });
+  }
+
+  try {
+    const policy = await getPolicyById(policy_id);
+    if (!policy || !policy.requires_gate) {
+      return res.status(404).json({ error: 'Gate policy not found' });
+    }
+    if (Number(policy.version) !== Number(version)) {
+      return res.status(409).json({
+        code: 'POLICY_VERSION_CHANGED',
+        policy: { id: policy.id, title: policy.title, content: policy.content, version: policy.version }
+      });
+    }
+
+    if (decision === 'agreed') {
+      const latest = await getLatestAcknowledgement(policy.id, req.user.id);
+      const alreadyAgreed = latest && latest.decision === 'agreed' && Number(latest.version_acknowledged) === Number(policy.version);
+      if (!alreadyAgreed) {
+        await insertAcknowledgement({
+          policyId: policy.id,
+          userId: req.user.id,
+          versionAcknowledged: policy.version,
+          decision: 'agreed',
+          ipAddress: req.ip,
+          userAgent: req.get('user-agent')
+        });
+        await recordLoginEvent({ userId: req.user.id, action: 'aup_agreed', ipAddress: req.ip, userAgent: req.get('user-agent') });
+      }
+      const pending = await getPendingGatePolicies(req.user.id);
+      return res.status(201).json({ ok: true, pending });
+    }
+
+    // decision === 'declined': fail closed — always revoke the session, even
+    // if recording the decline itself throws.
+    try {
+      await insertAcknowledgement({
+        policyId: policy.id,
+        userId: req.user.id,
+        versionAcknowledged: policy.version,
+        decision: 'declined',
+        ipAddress: req.ip,
+        userAgent: req.get('user-agent')
+      });
+      await recordLoginEvent({ userId: req.user.id, action: 'aup_declined', ipAddress: req.ip, userAgent: req.get('user-agent') });
+    } finally {
+      await revokeAuthSession(req.sessionId);
+    }
+    res.removeHeader('X-Auth-Token');
+    res.status(200).json({ ok: true, declined: true });
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to record your decision' });
+  }
+}
+
+async function getAcknowledgementHistoryForPolicy(req, res) {
+  const { id } = req.params;
+  try {
+    const policy = await getPolicyById(id);
+    if (!policy) return res.status(404).json({ error: 'Policy not found' });
+    const history = await getAcknowledgementHistory(id);
+    res.json(history);
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch acknowledgement history' });
   }
 }
 
@@ -202,5 +339,8 @@ module.exports = {
   getAcknowledgementsForPolicy,
   updatePolicy,
   getComplianceStatus,
-  getUserComplianceOverview
+  getUserComplianceOverview,
+  getGatePolicies,
+  postGateDecision,
+  getAcknowledgementHistoryForPolicy
 };

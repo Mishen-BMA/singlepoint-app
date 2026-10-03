@@ -47,9 +47,31 @@ test('authenticated proposal workflows work end to end', async () => {
       return (await response.json()).token;
     }
 
-    const adminToken = await login('admin@example.test', 'Admin-Password-2026!');
-    const managerToken = await login('manager@example.test', 'Manager-Password-2026!');
-    const staffToken = await login('staff@example.test', 'Staff-Password-2026!');
+    // Agrees to every currently-pending gate policy (just the AUP today) so
+    // the rest of this suite can exercise ordinary gated routes.
+    async function acceptAup(token) {
+      const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+      const pendingResponse = await fetch(`${base}/policies/gate`, { headers });
+      assert.equal(pendingResponse.status, 200);
+      const { pending } = await pendingResponse.json();
+      for (const policy of pending) {
+        const decisionResponse = await fetch(`${base}/policies/gate/decision`, {
+          method: 'POST', headers,
+          body: JSON.stringify({ policy_id: policy.id, version: policy.version, decision: 'agreed' })
+        });
+        assert.equal(decisionResponse.status, 201);
+      }
+    }
+
+    async function loginAndAcceptAup(email, password) {
+      const token = await login(email, password);
+      await acceptAup(token);
+      return token;
+    }
+
+    const adminToken = await loginAndAcceptAup('admin@example.test', 'Admin-Password-2026!');
+    const managerToken = await loginAndAcceptAup('manager@example.test', 'Manager-Password-2026!');
+    const staffToken = await loginAndAcceptAup('staff@example.test', 'Staff-Password-2026!');
     const staffHeaders = { Authorization: `Bearer ${staffToken}`, 'Content-Type': 'application/json' };
     const managerHeaders = { Authorization: `Bearer ${managerToken}`, 'Content-Type': 'application/json' };
     const adminHeaders = { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' };
@@ -91,27 +113,37 @@ test('authenticated proposal workflows work end to end', async () => {
     assert.match(acceptableUsePolicy.content, /bcrypt/i);
     assert.match(acceptableUsePolicy.content, /70%/);
     assert.match(acceptableUsePolicy.content, /30 days/i);
-    assert.equal(policies[0].compliant, false);
+    // Staff already agreed to the AUP at login (loginAndAcceptAup); it must
+    // never be acknowledged again through the ordinary endpoint.
+    assert.equal(acceptableUsePolicy.compliant, true);
+    response = await fetch(`${base}/policies/acknowledge`, {
+      method: 'POST', headers: staffHeaders, body: JSON.stringify({ policy_id: acceptableUsePolicy.id })
+    });
+    assert.equal(response.status, 409);
+    assert.equal((await response.json()).code, 'USE_GATE_ENDPOINT');
+
+    const targetPolicy = policies.find((policy) => policy.title !== 'Acceptable Use Policy');
+    assert.equal(targetPolicy.compliant, false);
 
     response = await fetch(`${base}/policies/acknowledge`, {
-      method: 'POST', headers: staffHeaders, body: JSON.stringify({ policy_id: policies[0].id })
+      method: 'POST', headers: staffHeaders, body: JSON.stringify({ policy_id: targetPolicy.id })
     });
     assert.equal(response.status, 201);
     response = await fetch(`${base}/policies`, { headers: staffHeaders });
-    assert.equal((await response.json())[0].compliant, true);
+    assert.equal((await response.json()).find((policy) => policy.id === targetPolicy.id).compliant, true);
 
-    response = await fetch(`${base}/policies/${policies[0].id}`, {
+    response = await fetch(`${base}/policies/${targetPolicy.id}`, {
       method: 'PUT', headers: adminHeaders,
-      body: JSON.stringify({ title: policies[0].title, content: `${policies[0].content} Updated for testing.` })
+      body: JSON.stringify({ title: targetPolicy.title, content: `${targetPolicy.content} Updated for testing.` })
     });
     assert.equal(response.status, 200);
     response = await fetch(`${base}/policies`, { headers: staffHeaders });
-    assert.equal((await response.json())[0].compliant, false);
+    assert.equal((await response.json()).find((policy) => policy.id === targetPolicy.id).compliant, false);
     response = await fetch(`${base}/policies/acknowledge`, {
-      method: 'POST', headers: staffHeaders, body: JSON.stringify({ policy_id: policies[0].id })
+      method: 'POST', headers: staffHeaders, body: JSON.stringify({ policy_id: targetPolicy.id })
     });
     assert.equal(response.status, 201);
-    response = await fetch(`${base}/policies/${policies[0].id}/acknowledgements`, { headers: managerHeaders });
+    response = await fetch(`${base}/policies/${targetPolicy.id}/acknowledgements`, { headers: managerHeaders });
     const roster = await response.json();
     assert.equal(roster.find((entry) => Number(entry.user_id) === Number(staff.id)).compliant, true);
     response = await fetch(`${base}/compliance/${staff.id}`, { headers: staffHeaders });

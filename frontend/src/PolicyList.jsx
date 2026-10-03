@@ -31,6 +31,8 @@ function PolicyList() {
     <div className="policy-list">
       {policies.map((policy) => {
         const isOpen = expandedId === policy.id;
+        const badgeLabel = policy.status === 'declined' ? 'DECLINED' : policy.compliant ? 'ACKNOWLEDGED' : policy.overdue ? 'OVERDUE' : 'PENDING';
+        const badgeClass = policy.status === 'declined' ? 'badge-overdue' : policy.compliant ? 'badge-done' : policy.overdue ? 'badge-overdue' : 'badge-pending';
         return (
           <article className="policy-card" key={policy.id}>
             <button className="policy-card-header" aria-expanded={isOpen} onClick={() => setExpandedId(isOpen ? null : policy.id)}>
@@ -38,12 +40,13 @@ function PolicyList() {
                 <div className="policy-title-row"><strong>{policy.title}</strong><span className="badge badge-mandatory">MANDATORY</span></div>
                 <div className="policy-meta">Version {policy.version}</div>
               </div>
-              <span className={`badge ${policy.compliant ? 'badge-done' : policy.overdue ? 'badge-overdue' : 'badge-pending'}`}>{policy.compliant ? 'ACKNOWLEDGED' : policy.overdue ? 'OVERDUE' : 'PENDING'}</span>
+              <span className={`badge ${badgeClass}`}>{badgeLabel}</span>
             </button>
             {isOpen && <div className="policy-body">
               {policy.content}
-              {!policy.compliant && <div><button className="btn-primary" onClick={() => handleAcknowledge(policy.id)}>I have read and understood this</button></div>}
-              {policy.acknowledged_at && <small className="policy-meta">Acknowledged {new Date(policy.acknowledged_at).toLocaleString()}</small>}
+              {!policy.compliant && !policy.requires_gate && <div><button className="btn-primary" onClick={() => handleAcknowledge(policy.id)}>I have read and understood this</button></div>}
+              {policy.requires_gate && !policy.compliant && <p className="policy-meta">This policy is enforced at sign-in; use the Acceptable Use Policy prompt shown after login to respond.</p>}
+              {policy.acknowledged_at && <small className="policy-meta">{policy.status === 'declined' ? 'Declined' : 'Acknowledged'} {new Date(policy.acknowledged_at).toLocaleString()}</small>}
             </div>}
           </article>
         );
