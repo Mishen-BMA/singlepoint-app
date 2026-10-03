@@ -74,7 +74,10 @@ function App() {
     );
   }
 
-  const isManagement = user.role === 'admin' || user.role === 'manager';
+  const hasPermission = (permission) => Boolean(user.permissions && user.permissions[permission]);
+  const isManagement = hasPermission('compliance.view_overview') || user.role === 'admin' || user.role === 'manager' || user.role === 'ceo';
+  const canManagePolicies = hasPermission('policies.manage') || user.role === 'admin';
+  const canManageUsers = hasPermission('users.manage') || user.role === 'admin';
   const navigation = [
     { id: 'dashboard', label: isManagement ? 'Compliance overview' : 'My compliance' },
     { id: 'policies', label: 'Security policies' },
@@ -83,11 +86,11 @@ function App() {
     { id: 'account', label: 'Account security' },
     { id: 'privacy', label: 'Privacy notice' },
     ...(isManagement ? [{ id: 'audit', label: 'Audit log' }] : []),
-    ...(user.role === 'admin' ? [{ id: 'users', label: 'User management' }] : [])
+    ...(canManageUsers ? [{ id: 'users', label: 'User management' }] : [])
   ];
   const headings = {
     dashboard: isManagement ? 'Compliance overview' : 'My compliance',
-    policies: user.role === 'admin' ? 'Policy management' : 'Security policies',
+    policies: canManagePolicies ? 'Policy management' : 'Security policies',
     training: 'Security training',
     incidents: isManagement ? 'Incident reports' : 'Incident reporting',
     users: 'User management',
@@ -98,11 +101,11 @@ function App() {
 
   let content;
   if (screen === 'dashboard') content = <Dashboard user={user} />;
-  else if (screen === 'policies' && user.role === 'admin') content = <AdminPolicyManager user={user} />;
+  else if (screen === 'policies' && canManagePolicies) content = <AdminPolicyManager user={user} />;
   else if (screen === 'policies') content = <PolicyList user={user} />;
   else if (screen === 'training') content = <TrainingCenter user={user} />;
   else if (screen === 'incidents') content = <IncidentCenter user={user} />;
-  else if (screen === 'users' && user.role === 'admin') content = <UserManager />;
+  else if (screen === 'users' && canManageUsers) content = <UserManager />;
   else if (screen === 'account') content = <AccountSettings onSessionEnded={() => { setUser(null); setScreen('dashboard'); }} />;
   else if (screen === 'privacy') content = <PrivacyNotice />;
   else if (screen === 'audit' && isManagement) content = <AuditLog />;

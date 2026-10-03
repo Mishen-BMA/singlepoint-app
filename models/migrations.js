@@ -474,6 +474,32 @@ async function seedRbacContent() {
   });
 }
 
+async function repairRoleSpecificAssignments() {
+  const version = 'repair_role_specific_assignments_v1';
+  if (await isApplied(version)) return;
+
+  await db.transaction(async (query) => {
+    for (const [title, content, roleKey] of RBAC_POLICIES) {
+      const policy = (await query('SELECT id FROM policies WHERE title = $1', [title])).rows[0];
+      if (!policy) continue;
+      await query(
+        'DELETE FROM policy_assignments WHERE policy_id = $1 AND role_key IS NOT NULL AND role_key <> $2',
+        [policy.id, roleKey]
+      );
+      await query(
+        `INSERT INTO policy_assignments (policy_id, role_key, due_days)
+         SELECT $1, $2, 30
+         WHERE NOT EXISTS (
+           SELECT 1 FROM policy_assignments WHERE policy_id = $1 AND role_key = $2
+         )`,
+        [policy.id, roleKey]
+      );
+    }
+
+    await markApplied(query, version);
+  });
+}
+
 async function runMigrations() {
   await ensureMigrationsTable();
   await migrateRolesAndPermissions();
@@ -485,6 +511,7 @@ async function runAssignmentMigrations() {
   await migrateAssignmentTables();
   await backfillAssignments();
   await seedRbacContent();
+  await repairRoleSpecificAssignments();
 }
 
 module.exports = {

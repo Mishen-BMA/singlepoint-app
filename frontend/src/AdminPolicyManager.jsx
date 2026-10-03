@@ -1,10 +1,19 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
 
+const POLICY_ROLES = [
+  ['ceo', 'CEO'],
+  ['manager', 'Manager'],
+  ['software_engineer', 'Software Engineer'],
+  ['hr', 'HR'],
+  ['data_science', 'Data Analyst / Data Science']
+];
+
 function AdminPolicyManager() {
   const [policies, setPolicies] = useState([]);
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
+  const [targetRoles, setTargetRoles] = useState(POLICY_ROLES.map(([role]) => role));
   const [editingId, setEditingId] = useState(null);
   const [acknowledgements, setAcknowledgements] = useState({});
   const [history, setHistory] = useState({});
@@ -33,12 +42,14 @@ function AdminPolicyManager() {
     setEditingId(null);
     setTitle('');
     setContent('');
+    setTargetRoles(POLICY_ROLES.map(([role]) => role));
   }
 
   function editPolicy(policy) {
     setEditingId(policy.id);
     setTitle(policy.title);
     setContent(policy.content);
+    setTargetRoles(policy.targetRoles || POLICY_ROLES.map(([role]) => role));
     setMessage('');
   }
 
@@ -53,7 +64,7 @@ function AdminPolicyManager() {
     try {
       const data = await api(endpoint, {
         method,
-        body: { title, content }
+        body: { title, content, targetRoles }
       });
       setMessage(editingId ? `Policy published as version ${data.version}.` : 'Policy published.');
       resetForm();
@@ -111,6 +122,7 @@ function AdminPolicyManager() {
             Policy content
             <textarea value={content} onChange={(event) => setContent(event.target.value)} rows="8" required />
           </label>
+          <fieldset className="target-roles"><legend>Visible to roles</legend>{POLICY_ROLES.map(([role, label]) => <label key={role}><input type="checkbox" checked={targetRoles.includes(role)} onChange={(event) => setTargetRoles((current) => event.target.checked ? [...current, role] : current.filter((item) => item !== role))} />{label}</label>)}</fieldset>
           <button className="btn-primary" type="submit" disabled={saving}>
             {saving ? 'Saving...' : editingId ? 'Publish new version' : 'Publish policy'}
           </button>

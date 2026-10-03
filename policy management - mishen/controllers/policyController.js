@@ -12,6 +12,13 @@ const { getScopeUserIds } = require('../../authentication-authorization-charuka/
 const { getAllRoles } = require('../../authentication-authorization-charuka/models/roleModel');
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const ASSIGNABLE_ROLES = ['admin', 'ceo', 'manager', 'software_engineer', 'hr', 'data_science'];
+
+function validTargetRoles(targetRoles) {
+  if (!Array.isArray(targetRoles)) return null;
+  const roles = [...new Set(targetRoles.filter((role) => ASSIGNABLE_ROLES.includes(role)))];
+  return roles.length ? roles : null;
+}
 
 // The latest acknowledgement row (by MAX(id)) for a user+policy pair is that
 // user's current decision. A declined row, or a row acknowledging an old
@@ -25,17 +32,27 @@ function statusFor({ decision, versionAcknowledged, currentVersion, updatedAt })
 }
 
 async function createPolicy(req, res) {
-  const { title, content } = req.body;
+  const { title, content, targetRoles } = req.body;
 
   if (typeof title !== 'string' || typeof content !== 'string' || title.trim().length < 3 || title.trim().length > 160 || content.trim().length < 10 || content.length > 20000) {
     return res.status(400).json({ error: 'Provide a policy title (3-160 characters) and content (10-20000 characters)' });
   }
 
   try {
-    const result = await db.query(
-      'INSERT INTO policies (title, content) VALUES ($1, $2) RETURNING *',
-      [title.trim(), content.trim()]
-    );
+    const roles = validTargetRoles(targetRoles) || ASSIGNABLE_ROLES;
+    const result = await db.transaction(async (query) => {
+      const policyResult = await query(
+        'INSERT INTO policies (title, content) VALUES ($1, $2) RETURNING *',
+        [title.trim(), content.trim()]
+      );
+      for (const role of roles) {
+        await query(
+          'INSERT INTO policy_assignments (policy_id, role_key, due_days) VALUES ($1, $2, 30)',
+          [policyResult.rows[0].id, role]
+        );
+      }
+      return policyResult;
+    });
     res.status(201).json(result.rows[0]);
   } catch (error) {
     res.status(500).json({ error: 'Failed to create policy' });
@@ -70,8 +87,18 @@ async function getAllPolicies(req, res) {
        ORDER BY p.created_at DESC`,
        isAuthor ? [req.user.id] : [req.user.id, req.user.role]
     );
+    const assignmentResult = await db.query(
+      'SELECT policy_id, role_key FROM policy_assignments WHERE role_key IS NOT NULL'
+    );
+    const targetRolesByPolicy = assignmentResult.rows.reduce((rolesByPolicy, assignment) => {
+      const policyRoles = rolesByPolicy.get(String(assignment.policy_id)) || [];
+      policyRoles.push(assignment.role_key);
+      rolesByPolicy.set(String(assignment.policy_id), policyRoles);
+      return rolesByPolicy;
+    }, new Map());
     result.rows = result.rows.map((row) => ({
       ...row,
+      targetRoles: targetRolesByPolicy.get(String(row.id)) || [],
       ...statusFor({
         decision: row.decision,
         versionAcknowledged: row.version_acknowledged,
@@ -129,20 +156,33 @@ async function getAcknowledgementsForPolicy(req, res) {
 
 async function updatePolicy(req, res) {
   const { id } = req.params;
-  const { title, content } = req.body;
+  const { title, content, targetRoles } = req.body;
 
   if (typeof title !== 'string' || typeof content !== 'string' || title.trim().length < 3 || title.trim().length > 160 || content.trim().length < 10 || content.length > 20000) {
     return res.status(400).json({ error: 'Provide a policy title (3-160 characters) and content (10-20000 characters)' });
   }
 
   try {
-    const result = await db.query(
+    const result = await db.transaction(async (query) => {
+      const policyResult = await query(
       `UPDATE policies
        SET title = $1, content = $2, version = version + 1, updated_at = NOW()
        WHERE id = $3
        RETURNING *`,
       [title.trim(), content.trim(), id]
-    );
+      );
+      if (Array.isArray(targetRoles)) {
+        const roles = validTargetRoles(targetRoles) || ASSIGNABLE_ROLES;
+        await query('DELETE FROM policy_assignments WHERE policy_id = $1 AND role_key IS NOT NULL', [id]);
+        for (const role of roles) {
+          await query(
+            'INSERT INTO policy_assignments (policy_id, role_key, due_days) VALUES ($1, $2, 30)',
+            [id, role]
+          );
+        }
+      }
+      return policyResult;
+    });
     if (result.rowCount === 0) {
       return res.status(404).json({ error: 'Policy not found' });
     }

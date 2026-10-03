@@ -1,9 +1,20 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
 
+const ROLE_OPTIONS = [
+  ['admin', 'System Administrator'],
+  ['ceo', 'CEO'],
+  ['manager', 'Manager'],
+  ['software_engineer', 'Software Engineer'],
+  ['hr', 'HR'],
+  ['data_science', 'Data Analyst / Data Science']
+];
+
+const roleLabel = Object.fromEntries(ROLE_OPTIONS);
+
 function UserManager() {
   const [users, setUsers] = useState([]);
-  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'staff' });
+  const [form, setForm] = useState({ name: '', email: '', password: '', role: 'software_engineer' });
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
 
@@ -32,7 +43,7 @@ function UserManager() {
     setNotice('');
     try {
       await api('/users', { method: 'POST', body: form });
-      setForm({ name: '', email: '', password: '', role: 'staff' });
+      setForm({ name: '', email: '', password: '', role: 'software_engineer' });
       setNotice('Account created. Share its initial password securely.');
       await load();
     } catch (createError) { setError(createError.message); }
@@ -46,7 +57,7 @@ function UserManager() {
           <label>Full name<input value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} required /></label>
           <label>Email<input type="email" value={form.email} onChange={(event) => setForm({ ...form, email: event.target.value })} required /></label>
           <label>Temporary password<input type="password" minLength="12" value={form.password} onChange={(event) => setForm({ ...form, password: event.target.value })} required /></label>
-          <label>Role<select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}><option value="staff">Staff</option><option value="manager">Manager</option><option value="admin">Admin</option></select></label>
+          <label>Role<select value={form.role} onChange={(event) => setForm({ ...form, role: event.target.value })}>{ROLE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
           <button className="btn-primary" type="submit">Create account</button>
         </form>
         {notice && <p className="success-message" role="status">{notice}</p>}
@@ -54,7 +65,7 @@ function UserManager() {
       </section>
       <section className="data-section">
         <div className="section-heading"><div><span className="eyebrow">ACCESS REGISTER</span><h2>Accounts</h2></div><span>{users.length} users</span></div>
-        <div className="user-list">{users.map((account) => <div className={`user-row ${account.is_active ? '' : 'user-row-inactive'}`} key={account.id}><div><strong>{account.name}</strong><small>{account.email} · {account.is_active ? 'Active' : 'Inactive'}</small></div><label className="sr-only" htmlFor={`role-${account.id}`}>Role for {account.name}</label><select id={`role-${account.id}`} value={account.role} onChange={(event) => changeRole(account.id, event.target.value)}><option value="staff">Staff</option><option value="manager">Manager</option><option value="admin">Admin</option></select><button className="btn-secondary" onClick={() => changeStatus(account)}>{account.is_active ? 'Deactivate' : 'Reactivate'}</button></div>)}</div>
+        <div className="user-list">{users.map((account) => <div className={`user-row ${account.is_active ? '' : 'user-row-inactive'}`} key={account.id}><div><strong>{account.name}</strong><small>{account.email} · {roleLabel[account.role] || account.role} · {account.is_active ? 'Active' : 'Inactive'}</small></div><label className="sr-only" htmlFor={`role-${account.id}`}>Role for {account.name}</label><select id={`role-${account.id}`} value={account.role} onChange={(event) => changeRole(account.id, event.target.value)}>{ROLE_OPTIONS.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select><button className="btn-secondary" onClick={() => changeStatus(account)}>{account.is_active ? 'Deactivate' : 'Reactivate'}</button></div>)}</div>
       </section>
     </div>
   );
