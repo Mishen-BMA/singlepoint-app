@@ -7,7 +7,7 @@
     "start": "node server.js",
     "seed:admin": "node authentication-authorization-charuka/scripts/seedUsers.js",
     "docs:aup": "node scripts/generateAupDocx.js",
-    "test": "node --test ./test/backend.test.js"
+    "test": "node --test ./test/backend.test.js ./test/aup.test.js"
   },
   "repository": {
     "type": "git",

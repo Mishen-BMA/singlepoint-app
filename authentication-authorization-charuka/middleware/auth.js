@@ -26,7 +26,7 @@ function issueToken(user, sessionId) {
   );
 }
 
-async function requireUser(req, res, next) {
+async function requireSession(req, res, next) {
   const header = req.header('Authorization') || '';
   const token = header.startsWith('Bearer ') ? header.slice(7) : null;
 
@@ -53,6 +53,25 @@ async function requireUser(req, res, next) {
   }
 }
 
+// requireUser = requireSession + the Acceptable Use Policy gate. Required
+// lazily (not at module scope) to avoid a circular import between the auth
+// middleware and the policy model.
+async function requireUser(req, res, next) {
+  return requireSession(req, res, async () => {
+    try {
+      const { getPendingGatePolicies } = require('../../policy management - mishen/models/policyModel');
+      const pending = await getPendingGatePolicies(req.user.id);
+      if (pending.length > 0) {
+        return res.status(403).json({ error: 'Acceptable Use Policy acknowledgement required', code: 'AUP_REQUIRED' });
+      }
+      return next();
+    } catch (error) {
+      // Fail closed: if the gate check itself errors, deny the request.
+      return res.status(403).json({ error: 'Acceptable Use Policy acknowledgement required', code: 'AUP_REQUIRED' });
+    }
+  });
+}
+
 function requireAdmin(req, res, next) {
   if (req.user.role !== 'admin') {
     return res.status(403).json({ error: 'Admin access required' });
@@ -68,6 +87,7 @@ function requireManagerOrAdmin(req, res, next) {
 }
 
 module.exports = {
+  requireSession,
   requireUser,
   requireAdmin,
   requireManagerOrAdmin,

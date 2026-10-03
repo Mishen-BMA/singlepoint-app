@@ -55,8 +55,17 @@ export async function api(path, options = {}) {
   const result = contentType.includes('application/json')
     ? await response.json()
     : await response.text();
+
+  if (response.status === 403 && result && result.code === 'AUP_REQUIRED') {
+    window.dispatchEvent(new Event('singlepoint:aup-required'));
+  }
+
   if (!response.ok) {
-    throw new Error(result.error || result.message || 'Request failed');
+    const message = (result && (result.error || result.message)) || 'Request failed';
+    const error = new Error(message);
+    error.status = response.status;
+    error.body = result;
+    throw error;
   }
   if (result && result.token) saveToken(result.token);
   return result;

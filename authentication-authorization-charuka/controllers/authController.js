@@ -16,6 +16,7 @@ const {
   recordLoginEvent
 } = require('../models/userModel');
 const { issueToken } = require('../middleware/auth');
+const { getPendingGatePolicies } = require('../../policy management - mishen/models/policyModel');
 
 const SALT_ROUNDS = 10;
 const ALLOWED_ROLES = ['admin', 'manager', 'staff'];
@@ -40,9 +41,10 @@ async function login(req, res) {
     await createAuthSession(sessionId, user.id, expiresAt);
     await recordLoginEvent({ userId: user.id, action: 'login_succeeded', ipAddress: req.ip, userAgent: req.get('user-agent') });
     const token = issueToken(user, sessionId);
+    const pending = await getPendingGatePolicies(user.id);
     res.json({
       token,
-      user: { id: user.id, name: user.name, email: user.email, role: user.role }
+      user: { id: user.id, name: user.name, email: user.email, role: user.role, aupPending: pending.length > 0 }
     });
   } catch (error) {
     res.status(500).json({ error: 'Login failed' });
@@ -55,7 +57,8 @@ async function me(req, res) {
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
-    res.json(user);
+    const pending = await getPendingGatePolicies(user.id);
+    res.json({ ...user, aupPending: pending.length > 0 });
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch current user' });
   }

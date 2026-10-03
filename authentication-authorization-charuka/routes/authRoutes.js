@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const { login, me, logout, registerUser, listUsers, changeUserRole, changeOwnPassword, setUserStatus, listLoginEvents } = require('../controllers/authController');
-const { requireUser, requireAdmin } = require('../middleware/auth');
+const { requireUser, requireSession, requireAdmin } = require('../middleware/auth');
 const { requireManagerOrAdmin } = require('../middleware/auth');
 
 router.post('/auth/login', login);
-router.post('/auth/logout', requireUser, logout);
-router.get('/auth/me', requireUser, me);
+router.post('/auth/logout', requireSession, logout);
+router.get('/auth/me', requireSession, me);
 router.patch('/auth/password', requireUser, changeOwnPassword);
 router.get('/auth/events', requireUser, requireManagerOrAdmin, listLoginEvents);
 

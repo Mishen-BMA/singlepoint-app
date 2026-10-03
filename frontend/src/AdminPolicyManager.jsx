@@ -7,6 +7,7 @@ function AdminPolicyManager() {
   const [content, setContent] = useState('');
   const [editingId, setEditingId] = useState(null);
   const [acknowledgements, setAcknowledgements] = useState({});
+  const [history, setHistory] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -73,6 +74,22 @@ function AdminPolicyManager() {
     }
   }
 
+  async function viewHistory(policyId) {
+    try {
+      const data = await api(`/policies/${policyId}/acknowledgement-history`);
+      setHistory((current) => ({ ...current, [policyId]: data }));
+    } catch (historyError) {
+      setError(historyError.message);
+    }
+  }
+
+  function statusLabel(status) {
+    if (status === 'acknowledged') return 'agreed';
+    if (status === 'declined') return 'declined';
+    if (status === 'overdue') return 'overdue';
+    return 'pending';
+  }
+
   if (loading) return <p>Loading policy management...</p>;
 
   return (
@@ -127,12 +144,27 @@ function AdminPolicyManager() {
               <button className="link-button" onClick={() => viewAcknowledgements(policy.id)}>
                 View acknowledgement record
               </button>
+              {policy.requires_gate && (
+                <button className="link-button" onClick={() => viewHistory(policy.id)}>
+                  View full acknowledgement history
+                </button>
+              )}
               {acknowledgements[policy.id] && (
                 <div className="acknowledgement-list">
                     <strong>{acknowledgements[policy.id].filter((entry) => entry.compliant).length}/{acknowledgements[policy.id].length} acknowledged</strong>
                   {acknowledgements[policy.id].map((acknowledgement) => (
                     <span key={acknowledgement.user_id}>
-                      {acknowledgement.name} · {acknowledgement.compliant ? `version ${acknowledgement.version_acknowledged} acknowledged` : 'pending'}
+                      {acknowledgement.name} · {acknowledgement.compliant ? `version ${acknowledgement.version_acknowledged} acknowledged` : statusLabel(acknowledgement.status)}
+                    </span>
+                  ))}
+                </div>
+              )}
+              {history[policy.id] && (
+                <div className="acknowledgement-list">
+                  <strong>Full history ({history[policy.id].length} events)</strong>
+                  {history[policy.id].map((entry) => (
+                    <span key={entry.id}>
+                      {entry.user_name} · version {entry.version_acknowledged} · {entry.decision} · {new Date(entry.acknowledged_at).toLocaleString()}
                     </span>
                   ))}
                 </div>
