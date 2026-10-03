@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import { api } from './api';
-import PrivacyNotice from './PrivacyNotice';
+import PrivacyNoticeModal from './PrivacyNoticeModal';
 
-function Login({ onLogin }) {
+function Login({ onLogin, theme, onToggleTheme }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [privacyOpen, setPrivacyOpen] = useState(false);
 
   async function submit(event) {
     event.preventDefault();
@@ -33,7 +34,8 @@ function Login({ onLogin }) {
         <p className="eyebrow">SALLELANKA SOLUTIONS</p>
         <h1>SinglePoint</h1>
         <p className="subtitle">Security policy and compliance</p>
-        <details className="privacy-details"><summary>Privacy notice</summary><PrivacyNotice compact /></details>
+        <button className="theme-toggle login-theme-toggle" type="button" aria-pressed={theme === 'light'} onClick={onToggleTheme}>Switch to {theme === 'dark' ? 'light' : 'dark'} mode</button>
+        <button className="privacy-open-button" type="button" onClick={() => setPrivacyOpen(true)}>Privacy notice</button>
         <form className="stack-form" onSubmit={submit}>
           <label>Email<input autoComplete="username" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
           <label>Password<input autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
@@ -41,6 +43,7 @@ function Login({ onLogin }) {
           <button className="btn-primary" type="submit" disabled={busy}>{busy ? 'Signing in...' : 'Sign in'}</button>
         </form>
       </section>
+      {privacyOpen && <PrivacyNoticeModal onClose={() => setPrivacyOpen(false)} />}
     </main>
   );
 }

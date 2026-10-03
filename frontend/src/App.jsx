@@ -7,6 +7,7 @@ import IncidentCenter from './IncidentCenter';
 import Login from './Login';
 import PolicyList from './PolicyList';
 import PrivacyNotice from './PrivacyNotice';
+import PrivacyNoticeModal from './PrivacyNoticeModal';
 import TrainingCenter from './TrainingCenter';
 import UserManager from './UserManager';
 import { api, clearToken, getToken } from './api';
@@ -14,6 +15,8 @@ import { api, clearToken, getToken } from './api';
 function App() {
   const [user, setUser] = useState(null);
   const [screen, setScreen] = useState('dashboard');
+  const [theme, setTheme] = useState(() => localStorage.getItem('singlepoint-theme') === 'light' ? 'light' : 'dark');
+  const [privacyOpen, setPrivacyOpen] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
 
   useEffect(() => {
@@ -30,6 +33,14 @@ function App() {
     return () => window.removeEventListener('singlepoint:unauthorized', handleUnauthorized);
   }, []);
 
+  useEffect(() => {
+    localStorage.setItem('singlepoint-theme', theme);
+  }, [theme]);
+
+  function toggleTheme() {
+    setTheme((current) => current === 'dark' ? 'light' : 'dark');
+  }
+
   async function logout() {
     try { await api('/auth/logout', { method: 'POST' }); } catch (error) { /* Clear the client session even if the API is unavailable. */ }
     clearToken();
@@ -38,7 +49,7 @@ function App() {
   }
 
   if (checkingSession) return <main className="login-screen"><p>Checking session...</p></main>;
-  if (!user) return <Login onLogin={(loggedInUser) => { setUser(loggedInUser); setScreen('dashboard'); }} />;
+  if (!user) return <div className={`app-theme theme-${theme}`}><Login theme={theme} onToggleTheme={toggleTheme} onLogin={(loggedInUser) => { setUser(loggedInUser); setScreen('dashboard'); }} /></div>;
 
   const isManagement = user.role === 'admin' || user.role === 'manager';
   const navigation = [
@@ -72,26 +83,30 @@ function App() {
   else content = <Dashboard user={user} />;
 
   return (
-    <div className="app-shell">
-      <div className="sidebar">
-        <div>
-          <div className="brand">
-            <div className="brand-icon">S</div>
-            <div className="brand-text"><h2>SinglePoint!</h2><span>SALLELANKA</span></div>
+    <div className={`app-theme theme-${theme}`}>
+      <div className="app-shell">
+        <div className="sidebar">
+          <div>
+            <div className="brand">
+              <div className="brand-icon">S</div>
+              <div className="brand-text"><h2>SinglePoint!</h2><span>SALLELANKA</span></div>
+            </div>
+            <nav aria-label="Main navigation">
+              {navigation.map((item) => <button key={item.id} className={`nav-item ${screen === item.id ? 'active' : ''}`} onClick={() => setScreen(item.id)}>{item.label}</button>)}
+            </nav>
           </div>
-          <nav aria-label="Main navigation">
-            {navigation.map((item) => <button key={item.id} className={`nav-item ${screen === item.id ? 'active' : ''}`} onClick={() => setScreen(item.id)}>{item.label}</button>)}
-          </nav>
+          <div className="sidebar-account">
+            <div className="account-name"><strong>{user.name}</strong><span>{user.role}</span></div>
+            <button className="theme-toggle" type="button" aria-pressed={theme === 'light'} onClick={toggleTheme}>Switch to {theme === 'dark' ? 'light' : 'dark'} mode</button>
+            <button className="btn-secondary" onClick={logout}>Sign out</button>
+          </div>
         </div>
-        <div className="sidebar-account">
-          <div className="account-name"><strong>{user.name}</strong><span>{user.role}</span></div>
-          <button className="btn-secondary" onClick={logout}>Sign out</button>
+        <div className="main">
+          <header className="page-header"><div><p className="subtitle">SinglePoint / {user.name}</p><h1>{headings[screen]}</h1></div></header>
+          {content}
         </div>
       </div>
-      <div className="main">
-        <header className="page-header"><div><p className="subtitle">SinglePoint / {user.name}</p><h1>{headings[screen]}</h1></div></header>
-        {content}
-      </div>
+      {privacyOpen && <PrivacyNoticeModal onClose={() => setPrivacyOpen(false)} />}
     </div>
   );
 }
