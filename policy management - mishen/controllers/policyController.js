@@ -68,7 +68,7 @@ async function getAllPolicies(req, res) {
        FROM policies p
        ${assignmentFilter}
        ORDER BY p.created_at DESC`,
-      [req.user.id, req.user.role]
+       isAuthor ? [req.user.id] : [req.user.id, req.user.role]
     );
     result.rows = result.rows.map((row) => ({
       ...row,
