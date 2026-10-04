@@ -97,26 +97,26 @@ function AdminPolicyManager() {
     } catch (historyError) {
       setError(historyError.message);
     }
+  }
 
-    async function deletePolicy(policy) {
-      if (policy.requires_gate) return;
-      if (pendingDeleteId !== policy.id) {
-        setPendingDeleteId(policy.id);
-        setMessage(`Click Delete again to permanently remove "${policy.title}".`);
-        return;
-      }
-      setError('');
-      setMessage('');
-      try {
-        await api(`/policies/${policy.id}`, { method: 'DELETE' });
-        setMessage('Policy deleted.');
-        setPendingDeleteId(null);
-        if (editingId === policy.id) resetForm();
-        await loadPolicies();
-      } catch (deleteError) {
-        setError(deleteError.message);
-        setPendingDeleteId(null);
-      }
+  async function deletePolicy(policy) {
+    if (policy.requires_gate) return;
+    if (pendingDeleteId !== policy.id) {
+      setPendingDeleteId(policy.id);
+      setMessage(`Click Delete again to permanently remove "${policy.title}".`);
+      return;
+    }
+    setError('');
+    setMessage('');
+    try {
+      await api(`/policies/${policy.id}`, { method: 'DELETE' });
+      setMessage('Policy deleted.');
+      setPendingDeleteId(null);
+      if (editingId === policy.id) resetForm();
+      await loadPolicies();
+    } catch (deleteError) {
+      setError(deleteError.message);
+      setPendingDeleteId(null);
     }
   }
 
