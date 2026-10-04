@@ -417,6 +417,11 @@ td small { color: #8992aa; display: block; margin-top: 4px; }
 .target-roles legend { color: #a0a8bd; font-size: 12px; font-weight: 600; padding: 0 4px; }
 .target-roles label { align-items: center; color: #c1c7d6; display: flex; gap: 7px; text-transform: capitalize; }
 .target-roles input { accent-color: #e0166f; }
+.quiz-authoring-options { border: 1px solid #28334c; display: grid; gap: 10px; padding: 12px; }
+.quiz-authoring-options legend { color: #a0a8bd; font-size: 12px; font-weight: 600; padding: 0 4px; }
+.quiz-authoring-option { align-items: center; display: flex; gap: 8px; }
+.quiz-authoring-option input:not([type="radio"]) { flex: 1; }
+.quiz-authoring-options small { color: #8992aa; font-size: 11px; }
 .btn-danger { background: #e0166f; border: 1px solid #e0166f; border-radius: 6px; color: #ffffff; cursor: pointer; font-weight: 600; padding: 8px 12px; }
 .btn-danger:hover { background: #c10b5f; }
 .btn-danger:disabled { cursor: wait; opacity: 0.6; }

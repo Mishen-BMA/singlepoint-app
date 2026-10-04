@@ -14,7 +14,7 @@ function TrainingCenter({ user }) {
   const [error, setError] = useState('');
   const [moduleForm, setModuleForm] = useState({ title: '', category: '', durationMin: 10, content: '', targetRoles: [] });
   const [editingModuleId, setEditingModuleId] = useState(null);
-  const [questionForm, setQuestionForm] = useState({ question: '', options: '', correctIndex: 0 });
+  const [questionForm, setQuestionForm] = useState({ question: '', options: ['', ''], correctIndex: 0 });
   const [managementMessage, setManagementMessage] = useState('');
   const [pendingDeleteId, setPendingDeleteId] = useState(null);
 
@@ -71,7 +71,7 @@ function TrainingCenter({ user }) {
     setError('');
     setManagementMessage('');
     try {
-      await api(editingModuleId ? `/training/modules/${editingModuleId}` : '/training/modules', {
+      const savedModule = await api(editingModuleId ? `/training/modules/${editingModuleId}` : '/training/modules', {
         method: editingModuleId ? 'PUT' : 'POST',
         body: { ...moduleForm, durationMin: Number(moduleForm.durationMin) }
       });
@@ -79,6 +79,7 @@ function TrainingCenter({ user }) {
       setEditingModuleId(null);
       setManagementMessage('Training module saved. Add at least one quiz question before assigning it.');
       await refresh();
+      if (!editingModuleId) await openModule(savedModule);
     } catch (saveError) { setError(saveError.message); }
   }
 
@@ -123,7 +124,7 @@ function TrainingCenter({ user }) {
         method: 'POST',
         body: { question: questionForm.question, options, correctIndex: Number(questionForm.correctIndex) }
       });
-      setQuestionForm({ question: '', options: '', correctIndex: 0 });
+      setQuestionForm({ question: '', options: ['', ''], correctIndex: 0 });
       setManagementMessage('Quiz question added.');
       await openModule(activeModule);
     } catch (saveError) { setError(saveError.message); }
@@ -144,8 +145,17 @@ function TrainingCenter({ user }) {
             <h3>Quiz authoring</h3>
             <form className="stack-form" onSubmit={addQuizQuestion}>
               <label>Question<input value={questionForm.question} onChange={(event) => setQuestionForm({ ...questionForm, question: event.target.value })} minLength="8" required /></label>
-              <label>Answer options, one per line<textarea rows="4" value={questionForm.options} onChange={(event) => setQuestionForm({ ...questionForm, options: event.target.value })} required /></label>
-              <label>Correct option number<input type="number" min="1" max="6" value={Number(questionForm.correctIndex) + 1} onChange={(event) => setQuestionForm({ ...questionForm, correctIndex: Number(event.target.value) - 1 })} required /></label>
+              <fieldset className="quiz-authoring-options">
+                <legend>Answer options</legend>
+                {questionForm.options.map((option, optionIndex) => (
+                  <label className="quiz-authoring-option" key={optionIndex}>
+                    <input type="radio" name="correct-answer" checked={questionForm.correctIndex === optionIndex} onChange={() => setQuestionForm({ ...questionForm, correctIndex: optionIndex })} aria-label={`Mark option ${optionIndex + 1} as correct`} />
+                    <input value={option} onChange={(event) => setQuestionForm({ ...questionForm, options: questionForm.options.map((current, index) => index === optionIndex ? event.target.value : current) })} placeholder={`Answer option ${optionIndex + 1}`} required />
+                  </label>
+                ))}
+                {questionForm.options.length < 6 && <button type="button" className="btn-secondary" onClick={() => setQuestionForm({ ...questionForm, options: [...questionForm.options, ''] })}>Add answer option</button>}
+                <small>Select the radio button beside the correct answer.</small>
+              </fieldset>
               <button className="btn-secondary" type="submit">Add quiz question</button>
             </form>
             {managementMessage && <p className="success-message" role="status">{managementMessage}</p>}
@@ -208,7 +218,7 @@ function TrainingCenter({ user }) {
                   <div><span className="eyebrow">{module.category} · {module.duration_min} MIN</span><h3>{module.title}</h3><span className={module.overdue ? 'module-status status-overdue' : 'module-status'}>{module.completed ? 'Completed' : module.overdue ? 'Overdue' : module.recommended ? 'Recommended for you' : 'Available'}</span></div>
                   <div className="button-row">
                     {isAdmin && <><button type="button" className="btn-secondary" onClick={() => editModule(module)}>Edit</button><button type="button" className="btn-danger" onClick={() => deleteModule(module)}>{pendingDeleteId === module.id ? 'Confirm delete' : 'Delete'}</button></>}
-                    <button type="button" className="btn-secondary" onClick={() => openModule(module)}>{isAdmin ? 'Manage quiz' : module.completed ? 'Retake' : 'Start'}</button>
+                    <button type="button" className="btn-secondary" onClick={() => openModule(module)}>{isAdmin ? 'Add questions & answers' : module.completed ? 'Retake' : 'Start'}</button>
                   </div>
                 </article>
               ))}
