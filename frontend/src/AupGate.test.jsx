@@ -48,12 +48,28 @@ test('renders the policy as a non-dismissible dialog and ignores Escape', async 
   expect(await screen.findByRole('dialog', { name: /acceptable use policy/i })).toBeInTheDocument();
   expect(screen.getByText(/version 3/i)).toBeInTheDocument();
   expect(screen.getByRole('region', { name: /policy text/i })).toBeInTheDocument();
+  expect(screen.getByText('Line one of the policy.')).toBeInTheDocument();
 
   fireEvent.keyDown(window, { key: 'Escape' });
 
   expect(onResolved).not.toHaveBeenCalled();
   expect(onDeclined).not.toHaveBeenCalled();
   expect(screen.getByRole('dialog', { name: /acceptable use policy/i })).toBeInTheDocument();
+});
+
+test('formats policy headings and bullets without showing markdown markers', async () => {
+  mockFetchSequence([
+    [(url) => url.includes('/policies/gate') && !url.includes('decision'), () => jsonResponse({
+      pending: [{ ...AUP_POLICY, content: '1. Accounts and passwords\n- Use your own account.\n- Never share your password.' }]
+    })]
+  ]);
+
+  render(<AupGate onResolved={vi.fn()} onDeclined={vi.fn()} />);
+
+  expect(await screen.findByRole('heading', { name: '1. Accounts and passwords' })).toBeInTheDocument();
+  expect(screen.getByRole('list')).toBeInTheDocument();
+  expect(screen.getAllByRole('listitem')).toHaveLength(2);
+  expect(screen.queryByText('- Use your own account.')).not.toBeInTheDocument();
 });
 
 test('disables Agree until the policy text is scrolled to the bottom', async () => {

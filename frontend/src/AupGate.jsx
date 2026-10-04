@@ -1,6 +1,54 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api } from './api';
 
+function renderPolicyContent(content) {
+  const lines = content.split(/\r?\n/);
+  const elements = [];
+  let bullets = [];
+
+  function flushBullets() {
+    if (bullets.length === 0) return;
+    elements.push(
+      <ul key={`bullets-${elements.length}`}>
+        {bullets.map((bullet, index) => <li key={`${bullet}-${index}`}>{bullet}</li>)}
+      </ul>
+    );
+    bullets = [];
+  }
+
+  lines.forEach((line, index) => {
+    const trimmed = line.trim();
+    if (!trimmed) {
+      flushBullets();
+      return;
+    }
+
+    const markdownHeading = trimmed.match(/^#{1,3}\s+(.+)$/);
+    const numberedHeading = trimmed.match(/^(\d+)\.\s+(.+)$/);
+    if (markdownHeading || numberedHeading) {
+      flushBullets();
+      elements.push(
+        <h2 key={`heading-${index}`}>
+          {markdownHeading ? markdownHeading[1] : `${numberedHeading[1]}. ${numberedHeading[2]}`}
+        </h2>
+      );
+      return;
+    }
+
+    const bullet = trimmed.match(/^[-*]\s+(.+)$/);
+    if (bullet) {
+      bullets.push(bullet[1]);
+      return;
+    }
+
+    flushBullets();
+    elements.push(<p key={`paragraph-${index}`}>{trimmed}</p>);
+  });
+
+  flushBullets();
+  return elements;
+}
+
 // A mandatory, full-screen gate shown instead of the rest of the app whenever
 // the signed-in user has not agreed to the current version of a gate-flagged
 // policy (currently just the Acceptable Use Policy). There is no way to skip
@@ -150,7 +198,7 @@ function AupGate({ onResolved, onDeclined }) {
           aria-label="Policy text"
           onScroll={handleScroll}
         >
-          {currentPolicy.content}
+          {renderPolicyContent(currentPolicy.content)}
         </div>
         {error && <p className="error-message" role="alert">{error}</p>}
         {!confirmDecline && (
