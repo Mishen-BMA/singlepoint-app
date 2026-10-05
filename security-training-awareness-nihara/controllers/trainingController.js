@@ -177,8 +177,12 @@ async function listModules(req, res) {
           WHERE qa.user_id = $1 AND qa.module_id = m.id AND qa.passed = TRUE
         ) AS completed
        FROM training_modules m
+       WHERE CAST($2 AS TEXT) = 'admin'
+          OR NOT EXISTS (SELECT 1 FROM training_assignments ta WHERE ta.module_id = m.id)
+          OR EXISTS (SELECT 1 FROM training_assignments ta
+                     WHERE ta.module_id = m.id AND (ta.role_key = $2 OR ta.user_id = $1))
        ORDER BY m.id`,
-      [req.user.id]);
+      [req.user.id, req.user.role]);
     res.json(r.rows.map((module) => {
       const roleRecommended = (module.target_roles || '').split(',').map((role) => role.trim()).includes(req.user.role);
       const recommended = Boolean(module.recommended) || roleRecommended;
