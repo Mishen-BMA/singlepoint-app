@@ -3,6 +3,7 @@ const {
   exportCsv,
   getMyReminders,
   getOverview,
+  acknowledgeReminder,
   getTrends,
   sendReminder
 } = require('../controllers/complianceReportingController');
@@ -18,5 +19,6 @@ router.get('/trends', requireUser, getTrends);
 router.get('/export.csv', requireUser, requirePermission('compliance.export_csv'), exportCsv);
 router.post('/reminders', requireUser, requirePermission('compliance.send_reminder'), sendReminder);
 router.get('/reminders/me', requireUser, getMyReminders);
+router.patch('/reminders/:id/read', requireUser, acknowledgeReminder);
 
 module.exports = router;

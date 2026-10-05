@@ -6,7 +6,8 @@ const STATUSES = ['Open', 'Investigating', 'Resolved'];
 const SEVERITIES = ['Low', 'Medium', 'High', 'Critical'];
 
 function IncidentCenter({ user }) {
-  const canReview = user.role === 'admin' || user.role === 'manager';
+  const canReview = Boolean(user.permissions && user.permissions['incidents.triage']);
+  const canSubmit = Boolean(user.permissions && user.permissions['incidents.submit']);
   const [incidents, setIncidents] = useState([]);
   const [incidentType, setIncidentType] = useState(INCIDENT_TYPES[0]);
   const [severity, setSeverity] = useState('Medium');
@@ -43,7 +44,7 @@ function IncidentCenter({ user }) {
 
   return (
     <div className="page-stack">
-      <section className="data-section">
+      {canSubmit && <section className="data-section">
         <span className="eyebrow">REPORT A CONCERN</span><h2>New incident report</h2>
         <form className="stack-form" onSubmit={submit}>
           <label>Incident type<select value={incidentType} onChange={(event) => setIncidentType(event.target.value)}>{INCIDENT_TYPES.map((type) => <option key={type}>{type}</option>)}</select></label>
@@ -52,7 +53,7 @@ function IncidentCenter({ user }) {
           <label>Description<textarea value={description} onChange={(event) => setDescription(event.target.value)} minLength="10" rows="5" required /></label>
           <button className="btn-primary" type="submit">Submit report</button>
         </form>
-      </section>
+      </section>}
       {notice && <p className="success-message" role="status">{notice}</p>}
       {error && <p className="error-message" role="alert">{error}</p>}
       <section className="data-section">

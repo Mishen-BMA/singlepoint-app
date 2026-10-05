@@ -69,8 +69,8 @@ const ROLE_PERMISSIONS = [
   ['ceo', 'compliance.view_overview', 'org'],
   ['ceo', 'compliance.view_executive', 'org'],
   ['ceo', 'compliance.export_csv', 'org'],
-  ['ceo', 'incidents.submit', 'own'],
   ['ceo', 'incidents.view_all', 'org'],
+  ['ceo', 'audit.view', 'org'],
 
   ['manager', 'users.view_directory', 'team'],
   ['manager', 'audit.view', 'team'],
@@ -202,6 +202,24 @@ async function migrateRolesAndPermissions() {
       );
     }
 
+    await markApplied(query, version);
+  });
+}
+
+// --- Migration 1b: align CEO with read-only executive access ---------------
+async function migrateCeoReadOnlyPermissions() {
+  const version = 'ceo_read_only_permissions_v1';
+  if (await isApplied(version)) return;
+
+  await db.transaction(async (query) => {
+    await query(
+      `INSERT INTO role_permissions (role_key, permission_key, scope)
+       SELECT 'ceo', 'audit.view', 'org'
+       WHERE EXISTS (SELECT 1 FROM roles WHERE key = 'ceo')
+         AND EXISTS (SELECT 1 FROM permissions WHERE key = 'audit.view')
+         AND NOT EXISTS (SELECT 1 FROM role_permissions WHERE role_key = 'ceo' AND permission_key = 'audit.view')`
+    );
+    await query("DELETE FROM role_permissions WHERE role_key = 'ceo' AND permission_key = 'incidents.submit'");
     await markApplied(query, version);
   });
 }
@@ -503,6 +521,7 @@ async function repairRoleSpecificAssignments() {
 async function runMigrations() {
   await ensureMigrationsTable();
   await migrateRolesAndPermissions();
+  await migrateCeoReadOnlyPermissions();
   await migrateUsersTable();
 }
 

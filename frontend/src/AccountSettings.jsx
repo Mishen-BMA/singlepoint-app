@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { api, clearToken } from './api';
+import PasswordInput from './PasswordInput';
 
 function AccountSettings({ onSessionEnded }) {
   const [currentPassword, setCurrentPassword] = useState('');
@@ -33,9 +34,9 @@ function AccountSettings({ onSessionEnded }) {
       <span className="eyebrow">ACCOUNT SECURITY</span>
       <h2>Change password</h2>
       <form className="stack-form" onSubmit={submit}>
-        <label>Current password<input autoComplete="current-password" type="password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required /></label>
-        <label>New password<input autoComplete="new-password" type="password" minLength="12" maxLength="72" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></label>
-        <label>Confirm new password<input autoComplete="new-password" type="password" minLength="12" maxLength="72" value={confirmation} onChange={(event) => setConfirmation(event.target.value)} required /></label>
+        <label>Current password<PasswordInput autoComplete="current-password" value={currentPassword} onChange={(event) => setCurrentPassword(event.target.value)} required /></label>
+        <label>New password<PasswordInput autoComplete="new-password" minLength="12" maxLength="72" value={newPassword} onChange={(event) => setNewPassword(event.target.value)} required /></label>
+        <label>Confirm new password<PasswordInput autoComplete="new-password" value={confirmation} minLength="12" maxLength="72" onChange={(event) => setConfirmation(event.target.value)} required /></label>
         {error && <p className="error-message" role="alert">{error}</p>}
         <button className="btn-primary" type="submit">Update password</button>
       </form>

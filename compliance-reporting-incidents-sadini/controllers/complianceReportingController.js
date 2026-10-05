@@ -2,6 +2,7 @@ const {
   createReminder,
   getComplianceSnapshots,
   getRemindersForUser,
+  markReminderRead,
   getStaffComplianceRows,
   saveComplianceSnapshot
 } = require('../models/complianceModel');
@@ -115,6 +116,21 @@ async function sendReminder(req, res) {
   }
 }
 
+async function acknowledgeReminder(req, res) {
+  const reminderId = Number(req.params.id);
+  if (!Number.isInteger(reminderId) || reminderId < 1) {
+    return res.status(400).json({ error: 'A valid reminder id is required' });
+  }
+  try {
+    const reminder = await markReminderRead(reminderId, req.user.id);
+    if (!reminder) return res.status(404).json({ error: 'Reminder not found' });
+    res.json(reminder);
+  } catch (error) {
+    console.error('Reminder acknowledgement failed:', error.message);
+    res.status(500).json({ error: 'Failed to acknowledge reminder' });
+  }
+}
+
 async function getMyReminders(req, res) {
   try {
     res.json(await getRemindersForUser(req.user.id));
@@ -124,4 +140,4 @@ async function getMyReminders(req, res) {
   }
 }
 
-module.exports = { getOverview, getTrends, exportCsv, sendReminder, getMyReminders };
+module.exports = { getOverview, getTrends, exportCsv, sendReminder, getMyReminders, acknowledgeReminder };

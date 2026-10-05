@@ -47,6 +47,7 @@ test('renders the policy as a non-dismissible dialog and ignores Escape', async 
 
   expect(await screen.findByRole('dialog', { name: /acceptable use policy/i })).toBeInTheDocument();
   expect(screen.getByText(/version 3/i)).toBeInTheDocument();
+  expect(screen.getByText(/required before access/i)).toBeInTheDocument();
   expect(screen.getByRole('region', { name: /policy text/i })).toBeInTheDocument();
   expect(screen.getByText('Line one of the policy.')).toBeInTheDocument();
 

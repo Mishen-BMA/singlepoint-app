@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { api } from './api';
 import PrivacyNoticeModal from './PrivacyNoticeModal';
+import PasswordInput from './PasswordInput';
 
 function Login({ onLogin, theme, onToggleTheme }) {
   const [email, setEmail] = useState('');
@@ -38,7 +39,7 @@ function Login({ onLogin, theme, onToggleTheme }) {
         <button className="privacy-open-button" type="button" onClick={() => setPrivacyOpen(true)}>Privacy notice</button>
         <form className="stack-form" onSubmit={submit}>
           <label>Email<input autoComplete="username" type="email" value={email} onChange={(event) => setEmail(event.target.value)} required /></label>
-          <label>Password<input autoComplete="current-password" type="password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
+          <label>Password<PasswordInput autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>
           {error && <p className="error-message" role="alert">{error}</p>}
           <button className="btn-primary" type="submit" disabled={busy}>{busy ? 'Signing in...' : 'Sign in'}</button>
         </form>

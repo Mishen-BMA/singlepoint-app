@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
+import { renderPolicyContent } from './AupGate';
 
 function PolicyList() {
   const [policies, setPolicies] = useState([]);
@@ -38,12 +39,12 @@ function PolicyList() {
             <button className="policy-card-header" aria-expanded={isOpen} onClick={() => setExpandedId(isOpen ? null : policy.id)}>
               <div>
                 <div className="policy-title-row"><strong>{policy.title}</strong><span className="badge badge-mandatory">MANDATORY</span></div>
-                <div className="policy-meta">Version {policy.version}</div>
+                <div className="policy-meta">Version {policy.version} | {policy.requires_gate ? 'Required at sign-in' : 'Assigned policy'}</div>
               </div>
               <span className={`badge ${badgeClass}`}>{badgeLabel}</span>
             </button>
             {isOpen && <div className="policy-body">
-              {policy.content}
+              <div className="policy-reading-panel">{renderPolicyContent(policy.content)}</div>
               {!policy.compliant && !policy.requires_gate && <div><button className="btn-primary" onClick={() => handleAcknowledge(policy.id)}>I have read and understood this</button></div>}
               {policy.requires_gate && !policy.compliant && <p className="policy-meta">This policy is enforced at sign-in; use the Acceptable Use Policy prompt shown after login to respond.</p>}
               {policy.acknowledged_at && <small className="policy-meta">{policy.status === 'declined' ? 'Declined' : 'Acknowledged'} {new Date(policy.acknowledged_at).toLocaleString()}</small>}

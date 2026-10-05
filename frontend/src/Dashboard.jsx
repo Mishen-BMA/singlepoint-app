@@ -1,47 +1,76 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { api } from './api';
 
 function Dashboard({ user }) {
-  const isManager = user.role === 'admin' || user.role === 'manager';
+  const isManager = user.role === 'admin' || user.role === 'manager' || Boolean(user.permissions && user.permissions['compliance.view_overview']);
   const [overview, setOverview] = useState(null);
   const [trends, setTrends] = useState([]);
   const [recentIncidents, setRecentIncidents] = useState([]);
   const [personal, setPersonal] = useState(null);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const [popupReminder, setPopupReminder] = useState(null);
+  const [reminders, setReminders] = useState([]);
+  const shownReminderIds = useRef(new Set());
 
   useEffect(() => {
     let active = true;
+    function receiveReminders(nextReminders) {
+      if (!active) return;
+      setReminders(nextReminders);
+      const nextPopup = nextReminders.find((reminder) => !reminder.read_at && !shownReminderIds.current.has(reminder.id));
+      if (nextPopup) {
+        shownReminderIds.current.add(nextPopup.id);
+        setPopupReminder(nextPopup);
+      }
+    }
     async function load() {
       try {
+        const remindersPromise = api('/compliance/reminders/me');
         if (isManager) {
-          const [summary, history, incidentData] = await Promise.all([
-            api('/compliance/overview'),
-            api('/compliance/trends'),
-            api('/incidents')
+          const [summary, history, incidentData, currentReminders] = await Promise.all([
+            api('/compliance/overview'), api('/compliance/trends'), api('/incidents'), remindersPromise
           ]);
           if (active) {
             setOverview(summary);
             setTrends(history);
             setRecentIncidents(incidentData.incidents.slice(0, 3));
+            receiveReminders(currentReminders);
           }
         } else {
-          const [policies, training, incidents, reminders, survey] = await Promise.all([
-            api('/policies'),
-            api('/training/progress/me'),
-            api('/incidents'),
-            api('/compliance/reminders/me'),
-            api('/training/survey')
+          const [policies, training, incidents, currentReminders, survey] = await Promise.all([
+            api('/policies'), api('/training/progress/me'), api('/incidents'), remindersPromise, api('/training/survey')
           ]);
-          if (active) setPersonal({ policies, training, incidents: incidents.incidents, reminders, survey });
+          if (active) {
+            setPersonal({ policies, training, incidents: incidents.incidents, reminders: currentReminders, survey });
+            receiveReminders(currentReminders);
+          }
         }
       } catch (loadError) {
         if (active) setError(loadError.message);
       }
     }
     load();
-    return () => { active = false; };
+    const poller = window.setInterval(() => {
+      api('/compliance/reminders/me').then(receiveReminders).catch(() => {});
+    }, 15000);
+    return () => { active = false; window.clearInterval(poller); };
   }, [isManager]);
+
+  async function acknowledgeReminder() {
+    if (!popupReminder) return;
+    const reminder = popupReminder;
+    try {
+      const acknowledged = await api(`/compliance/reminders/${reminder.id}/read`, { method: 'PATCH' });
+      const updatedReminders = reminders.map((item) => item.id === reminder.id ? { ...item, read_at: acknowledged.read_at } : item);
+      setReminders(updatedReminders);
+      const nextPopup = updatedReminders.find((item) => !item.read_at && !shownReminderIds.current.has(item.id));
+      if (nextPopup) shownReminderIds.current.add(nextPopup.id);
+      setPopupReminder(nextPopup || null);
+    } catch (acknowledgeError) {
+      setError(acknowledgeError.message);
+    }
+  }
 
   async function remind(userId) {
     setNotice('');
@@ -72,9 +101,21 @@ function Dashboard({ user }) {
 
   if (error) return <p className="error-message" role="alert">{error}</p>;
 
+  const reminderPopup = popupReminder && (
+    <div className="privacy-modal-backdrop reminder-popup-backdrop" role="presentation">
+      <section className="privacy-modal reminder-popup" role="dialog" aria-modal="true" aria-labelledby="reminder-title">
+        <div className="privacy-modal-header"><h2 id="reminder-title">Compliance reminder</h2></div>
+        <p>{popupReminder.message}</p>
+        <button className="btn-primary" type="button" onClick={acknowledgeReminder}>Acknowledge</button>
+      </section>
+    </div>
+  );
+
   if (isManager) {
     if (!overview) return <p>Loading compliance overview...</p>;
     return (
+      <>
+      {reminderPopup}
       <div className="page-stack">
         <div className="section-heading">
           <div><span className="eyebrow">TEAM STATUS</span><h2>Compliance overview</h2></div>
@@ -127,6 +168,7 @@ function Dashboard({ user }) {
           )}
         </section>
       </div>
+      </>
     );
   }
 
@@ -137,6 +179,8 @@ function Dashboard({ user }) {
   const completed = completedTraining + Number(personal.survey.complete);
   const totalTraining = requiredTraining.length + 1;
   return (
+    <>
+    {reminderPopup}
     <div className="page-stack">
       <div className="section-heading"><div><span className="eyebrow">YOUR STATUS</span><h2>My compliance</h2></div></div>
       <div className="metric-grid">
@@ -146,16 +190,17 @@ function Dashboard({ user }) {
       </div>
       <section className="data-section">
         <h2>Pending actions</h2>
-        {personal.reminders.length === 0 && acknowledged === personal.policies.length && completed === totalTraining
+        {reminders.length === 0 && acknowledged === personal.policies.length && completed === totalTraining
           ? <p>You are up to date.</p>
           : <ul className="action-list">
             {personal.policies.filter((policy) => !policy.compliant).map((policy) => <li className={policy.overdue ? 'status-overdue' : ''} key={`p-${policy.id}`}>{policy.overdue ? 'Overdue: ' : 'Acknowledge: '}{policy.title}</li>)}
             {!personal.survey.complete && <li key="survey">Complete the security habits survey</li>}
             {requiredTraining.filter((module) => !module.completed).map((module) => <li className={module.overdue ? 'status-overdue' : ''} key={`t-${module.module_id}`}>{module.overdue ? 'Overdue: ' : 'Complete: '}{module.title}</li>)}
-            {personal.reminders.map((reminder) => <li key={`r-${reminder.id}`}>Manager reminder: {reminder.message}</li>)}
+            {reminders.map((reminder) => <li key={`r-${reminder.id}`}>Manager reminder: {reminder.message}</li>)}
           </ul>}
       </section>
     </div>
+    </>
   );
 }
 

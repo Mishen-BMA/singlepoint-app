@@ -93,6 +93,8 @@ function App() {
   const isManagement = hasPermission('compliance.view_overview') || user.role === 'admin' || user.role === 'manager' || user.role === 'ceo';
   const canManagePolicies = hasPermission('policies.manage') || user.role === 'admin';
   const canManageUsers = hasPermission('users.manage') || user.role === 'admin';
+  const canViewUsers = hasPermission('users.view_directory') || canManageUsers;
+  const canViewAudit = hasPermission('audit.view');
   const navigation = [
     { id: 'dashboard', label: isManagement ? 'Compliance overview' : 'My compliance' },
     { id: 'policies', label: 'Security policies' },
@@ -100,8 +102,8 @@ function App() {
     { id: 'incidents', label: isManagement ? 'Incident reports' : 'Report an incident' },
     { id: 'account', label: 'Account security' },
     { id: 'privacy', label: 'Privacy notice' },
-    ...(isManagement ? [{ id: 'audit', label: 'Audit log' }] : []),
-    ...(canManageUsers ? [{ id: 'users', label: 'User management' }] : [])
+    ...(canViewAudit ? [{ id: 'audit', label: 'Audit log' }] : []),
+    ...(canViewUsers ? [{ id: 'users', label: canManageUsers ? 'User management' : 'User register' }] : [])
   ];
   const headings = {
     dashboard: isManagement ? 'Compliance overview' : 'My compliance',
@@ -120,10 +122,10 @@ function App() {
   else if (screen === 'policies') content = <PolicyList user={user} />;
   else if (screen === 'training') content = <TrainingCenter user={user} />;
   else if (screen === 'incidents') content = <IncidentCenter user={user} />;
-  else if (screen === 'users' && canManageUsers) content = <UserManager />;
+  else if (screen === 'users' && canViewUsers) content = <UserManager canManage={canManageUsers} />;
   else if (screen === 'account') content = <AccountSettings onSessionEnded={() => { setUser(null); setScreen('dashboard'); }} />;
   else if (screen === 'privacy') content = <PrivacyNotice />;
-  else if (screen === 'audit' && isManagement) content = <AuditLog />;
+  else if (screen === 'audit' && canViewAudit) content = <AuditLog />;
   else content = <Dashboard user={user} />;
 
   return (

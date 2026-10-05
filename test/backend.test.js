@@ -72,6 +72,14 @@ test('authenticated proposal workflows work end to end', async () => {
     const adminToken = await loginAndAcceptAup('admin@example.test', 'Admin-Password-2026!');
     const managerToken = await loginAndAcceptAup('manager@example.test', 'Manager-Password-2026!');
     const staffToken = await loginAndAcceptAup('staff@example.test', 'Staff-Password-2026!');
+    const ceoPermissions = await db.query(
+      "SELECT permission_key, scope FROM role_permissions WHERE role_key = 'ceo'"
+    );
+    const ceoPermissionMap = Object.fromEntries(ceoPermissions.rows.map((row) => [row.permission_key, row.scope]));
+    assert.equal(ceoPermissionMap['incidents.view_all'], 'org');
+    assert.equal(ceoPermissionMap['users.view_directory'], 'org');
+    assert.equal(ceoPermissionMap['audit.view'], 'org');
+    assert.equal(Object.hasOwn(ceoPermissionMap, 'incidents.submit'), false);
     const staffHeaders = { Authorization: `Bearer ${staffToken}`, 'Content-Type': 'application/json' };
     const managerHeaders = { Authorization: `Bearer ${managerToken}`, 'Content-Type': 'application/json' };
     const adminHeaders = { Authorization: `Bearer ${adminToken}`, 'Content-Type': 'application/json' };
@@ -235,8 +243,15 @@ test('authenticated proposal workflows work end to end', async () => {
       body: JSON.stringify({ userId: staff.id, message: 'Complete remaining requirements.' })
     });
     assert.equal(response.status, 201);
+    const createdReminder = await response.json();
     response = await fetch(`${base}/compliance/reminders/me`, { headers: staffHeaders });
     assert.equal((await response.json()).length, 1);
+    response = await fetch(`${base}/compliance/reminders/${createdReminder.id}/read`, { method: 'PATCH', headers: staffHeaders });
+    assert.equal(response.status, 200);
+    const acknowledgedReminder = await response.json();
+    assert.ok(acknowledgedReminder.read_at);
+    response = await fetch(`${base}/compliance/reminders/${createdReminder.id}/read`, { method: 'PATCH', headers: managerHeaders });
+    assert.equal(response.status, 404);
 
     response = await fetch(`${base}/users/${staff.id}/role`, {
       method: 'PATCH', headers: adminHeaders, body: JSON.stringify({ role: 'manager' })

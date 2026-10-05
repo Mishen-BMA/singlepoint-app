@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api } from './api';
 
-function renderPolicyContent(content) {
+export function renderPolicyContent(content) {
   const lines = content.split(/\r?\n/);
   const elements = [];
   let bullets = [];
@@ -185,8 +185,8 @@ function AupGate({ onResolved, onDeclined }) {
         aria-labelledby="aup-gate-title"
       >
         <h1 id="aup-gate-title">Acceptable Use Policy</h1>
-        <p className="aup-gate-version">Version {currentPolicy.version}</p>
-        <p className="aup-gate-instructions">
+        <div className="aup-gate-summary"><span className="badge badge-mandatory">REQUIRED BEFORE ACCESS</span><p className="aup-gate-version">Version {currentPolicy.version}</p></div>
+        <p className="aup-gate-instructions"><strong>Review and respond to this policy</strong>
           You must read this policy in full and agree to it before you can use SinglePoint. If you
           disagree, your session will end immediately and you will be signed out.
         </p>

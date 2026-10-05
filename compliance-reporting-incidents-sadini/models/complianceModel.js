@@ -190,6 +190,17 @@ async function createReminder({ recipientId, createdBy, message }) {
   return result.rows[0];
 }
 
+async function markReminderRead(reminderId, userId) {
+  const result = await db.query(
+    `UPDATE compliance_reminders
+     SET read_at = COALESCE(read_at, NOW())
+     WHERE id = $1 AND recipient_id = $2
+     RETURNING id, message, created_at, read_at`,
+    [reminderId, userId]
+  );
+  return result.rows[0] || null;
+}
+
 async function getRemindersForUser(userId) {
   const result = await db.query(
     `SELECT id, message, created_at, read_at
@@ -207,5 +218,6 @@ module.exports = {
   saveComplianceSnapshot,
   getComplianceSnapshots,
   createReminder,
-  getRemindersForUser
+  getRemindersForUser,
+  markReminderRead
 };
