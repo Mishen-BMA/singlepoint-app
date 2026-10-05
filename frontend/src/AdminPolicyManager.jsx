@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
+import { renderPolicyContent } from './AupGate';
 
 const POLICY_ROLES = [
   ['ceo', 'CEO'],
@@ -181,7 +182,9 @@ function AdminPolicyManager() {
                   {!policy.requires_gate && <button type="button" className="btn-danger" onClick={() => deletePolicy(policy)}>{pendingDeleteId === policy.id ? 'Confirm delete' : 'Delete'}</button>}
                 </div>
               </div>
-              <p className="policy-preview">{policy.content}</p>
+              <div className="policy-preview policy-rich-text">
+                {renderPolicyContent(policy.content)}
+              </div>
               <button className="link-button" onClick={() => viewAcknowledgements(policy.id)}>
                 View acknowledgement record
               </button>

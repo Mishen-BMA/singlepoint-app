@@ -213,6 +213,12 @@ body {
 .admin-policy-list { display: grid; gap: 14px; }
 .admin-policy-card { margin-bottom: 0; }
 .policy-preview { color: #c1c7d6; font-size: 13px; line-height: 1.55; margin: 16px 0 10px; }
+.policy-rich-text { color: #c1c7d6; line-height: 1.6; }
+.policy-rich-text h2 { color: #ffffff; font-family: 'Rajdhani', sans-serif; font-size: 18px; line-height: 1.3; margin: 20px 0 7px; }
+.policy-rich-text h2:first-child { margin-top: 0; }
+.policy-rich-text p { margin: 0 0 11px; }
+.policy-rich-text ul { margin: 0 0 13px; padding-left: 22px; }
+.policy-rich-text li { margin: 5px 0; padding-left: 4px; }
 .link-button { border: 0; color: #ff4f9a; padding: 0; }
 .acknowledgement-list { border-top: 1px solid #1e2740; display: grid; gap: 6px; margin-top: 14px; padding-top: 12px; }
 .acknowledgement-list strong, .acknowledgement-list span { color: #8992aa; font-size: 12px; }
@@ -274,6 +280,8 @@ body {
 .theme-light .acknowledgement-list strong,
 .theme-light .acknowledgement-list span,
 .theme-light .lesson-copy { color: #475569; }
+.theme-light .policy-rich-text { color: #475569; }
+.theme-light .policy-rich-text h2 { color: #1a2233; }
 .theme-light .policy-body,
 .theme-light .acknowledgement-list,
 .theme-light .lesson-copy,
