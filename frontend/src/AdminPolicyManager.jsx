@@ -15,6 +15,7 @@ function AdminPolicyManager() {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [targetRoles, setTargetRoles] = useState(POLICY_ROLES.map(([role]) => role));
+  const [expandedId, setExpandedId] = useState(null);
   const [editingId, setEditingId] = useState(null);
   const [acknowledgements, setAcknowledgements] = useState({});
   const [history, setHistory] = useState({});
@@ -169,7 +170,17 @@ function AdminPolicyManager() {
         <div className="admin-policy-list">
           {policies.map((policy) => (
             <article className="policy-card admin-policy-card" key={policy.id}>
-              <div className="policy-card-header">
+              <button
+                type="button"
+                className="policy-title-toggle"
+                aria-expanded={expandedId === policy.id}
+                aria-controls={`admin-policy-content-${policy.id}`}
+                onClick={() => setExpandedId(expandedId === policy.id ? null : policy.id)}
+              >
+                <strong>{policy.title}</strong>
+              </button>
+              {expandedId === policy.id && <div id={`admin-policy-content-${policy.id}`} className="admin-policy-content">
+                <div className="policy-card-header">
                 <div>
                   <div className="policy-title-row">
                     <strong>{policy.title}</strong>
@@ -181,38 +192,39 @@ function AdminPolicyManager() {
                   <button type="button" className="btn-secondary" onClick={() => editPolicy(policy)}>Edit</button>
                   {!policy.requires_gate && <button type="button" className="btn-danger" onClick={() => deletePolicy(policy)}>{pendingDeleteId === policy.id ? 'Confirm delete' : 'Delete'}</button>}
                 </div>
-              </div>
-              <div className="policy-preview policy-rich-text">
-                {renderPolicyContent(policy.content)}
-              </div>
-              <button className="link-button" onClick={() => viewAcknowledgements(policy.id)}>
-                View acknowledgement record
-              </button>
-              {policy.requires_gate && (
-                <button className="link-button" onClick={() => viewHistory(policy.id)}>
-                  View full acknowledgement history
+                </div>
+                <div className="policy-preview policy-rich-text">
+                  {renderPolicyContent(policy.content)}
+                </div>
+                <button className="link-button" onClick={() => viewAcknowledgements(policy.id)}>
+                  View acknowledgement record
                 </button>
-              )}
-              {acknowledgements[policy.id] && (
-                <div className="acknowledgement-list">
+                {policy.requires_gate && (
+                  <button className="link-button" onClick={() => viewHistory(policy.id)}>
+                    View full acknowledgement history
+                  </button>
+                )}
+                {acknowledgements[policy.id] && (
+                  <div className="acknowledgement-list">
                     <strong>{acknowledgements[policy.id].filter((entry) => entry.compliant).length}/{acknowledgements[policy.id].length} acknowledged</strong>
-                  {acknowledgements[policy.id].map((acknowledgement) => (
-                    <span key={acknowledgement.user_id}>
-                      {acknowledgement.name} · {acknowledgement.compliant ? `version ${acknowledgement.version_acknowledged} acknowledged` : statusLabel(acknowledgement.status)}
-                    </span>
-                  ))}
-                </div>
-              )}
-              {history[policy.id] && (
-                <div className="acknowledgement-list">
-                  <strong>Full history ({history[policy.id].length} events)</strong>
-                  {history[policy.id].map((entry) => (
-                    <span key={entry.id}>
-                      {entry.user_name} · version {entry.version_acknowledged} · {entry.decision} · {new Date(entry.acknowledged_at).toLocaleString()}
-                    </span>
-                  ))}
-                </div>
-              )}
+                    {acknowledgements[policy.id].map((acknowledgement) => (
+                      <span key={acknowledgement.user_id}>
+                        {acknowledgement.name} · {acknowledgement.compliant ? `version ${acknowledgement.version_acknowledged} acknowledged` : statusLabel(acknowledgement.status)}
+                      </span>
+                    ))}
+                  </div>
+                )}
+                {history[policy.id] && (
+                  <div className="acknowledgement-list">
+                    <strong>Full history ({history[policy.id].length} events)</strong>
+                    {history[policy.id].map((entry) => (
+                      <span key={entry.id}>
+                        {entry.user_name} · version {entry.version_acknowledged} · {entry.decision} · {new Date(entry.acknowledged_at).toLocaleString()}
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </div>}
             </article>
           ))}
         </div>
