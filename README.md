@@ -6,7 +6,7 @@ Security policy awareness & compliance web app built for **Sallelanka Solutions 
 
 SinglePoint was built following a cybersecurity risk assessment conducted on Sallelanka Solutions. The project addresses shared remote-access credentials and missing policy and session accountability through individual logins, policy acknowledgement, targeted security training, incident reporting, and a management compliance dashboard.
 
-This project is built for **IE3072 — Information Security Policy and Management**, SLIIT.
+This project is built for **IE3072 - Information Security Policy and Management**, SLIIT.
 
 ## Team — Group E3072_021
 
