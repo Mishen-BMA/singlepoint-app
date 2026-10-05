@@ -2,7 +2,18 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { api } from './api';
 
 export function renderPolicyContent(content) {
-  const lines = content.split(/\r?\n/);
+  let normalizedContent = content.replace(/\r\n?/g, '\n');
+  const firstSectionIndex = normalizedContent.search(/\s\d+\.\s+[A-Z]/);
+  if (firstSectionIndex >= 0) {
+    const prefix = normalizedContent.slice(0, firstSectionIndex);
+    const suffix = normalizedContent.slice(firstSectionIndex);
+    normalizedContent = `${prefix.replace(/\s-\s/, ' __POLICY_DASH__ ')}${suffix}`;
+  }
+  const lines = normalizedContent
+    .replace(/([^\n])\s+(?=\d+\.\s+[A-Z])/g, '$1\n\n')
+    .replace(/([^\n])\s+-\s+(?=[A-Z])/g, '$1\n- ')
+    .replace(/__POLICY_DASH__/g, '-')
+    .split('\n');
   const elements = [];
   let bullets = [];
 
@@ -24,14 +35,22 @@ export function renderPolicyContent(content) {
     }
 
     const markdownHeading = trimmed.match(/^#{1,3}\s+(.+)$/);
+    const aupHeading = trimmed.match(
+      /^(\d+)\.\s+(Purpose and scope|Accounts and passwords|Roles and access|Remote access and client systems|Client and personal data|Devices and messaging|Policies and training|Incident reporting|Monitoring and privacy|Enforcement and consequences)(?:\s+(.+))?$/i
+    );
     const numberedHeading = trimmed.match(/^(\d+)\.\s+(.+)$/);
-    if (markdownHeading || numberedHeading) {
+    if (markdownHeading || aupHeading || numberedHeading) {
       flushBullets();
       elements.push(
         <h2 key={`heading-${index}`}>
-          {markdownHeading ? markdownHeading[1] : `${numberedHeading[1]}. ${numberedHeading[2]}`}
+          {markdownHeading
+            ? markdownHeading[1]
+            : `${(aupHeading || numberedHeading)[1]}. ${(aupHeading || numberedHeading)[2]}`}
         </h2>
       );
+      if (aupHeading && aupHeading[3]) {
+        elements.push(<p key={`heading-copy-${index}`}>{aupHeading[3]}</p>);
+      }
       return;
     }
 

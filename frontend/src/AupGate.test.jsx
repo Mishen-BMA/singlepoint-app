@@ -1,6 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import AupGate from './AupGate';
+import AupGate, { renderPolicyContent } from './AupGate';
 
 const AUP_POLICY = {
   id: 1,
@@ -71,6 +71,16 @@ test('formats policy headings and bullets without showing markdown markers', asy
   expect(screen.getByRole('list')).toBeInTheDocument();
   expect(screen.getAllByRole('listitem')).toHaveLength(2);
   expect(screen.queryByText('- Use your own account.')).not.toBeInTheDocument();
+});
+
+test('restores section and bullet boundaries in collapsed policy content', () => {
+  const content = 'ACCEPTABLE USE POLICY - SinglePoint systems 1. Purpose and scope This policy applies to staff. 2. Accounts and passwords - Use an individual account. - Never share passwords.';
+  const { container } = render(<div>{renderPolicyContent(content)}</div>);
+
+  expect(container.querySelectorAll('h2')).toHaveLength(2);
+  expect(container.querySelectorAll('ul')).toHaveLength(1);
+  expect(container.querySelectorAll('li')).toHaveLength(2);
+  expect(container.textContent).toContain('This policy applies to staff.');
 });
 
 test('disables Agree until the policy text is scrolled to the bottom', async () => {
