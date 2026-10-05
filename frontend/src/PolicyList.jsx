@@ -36,14 +36,25 @@ function PolicyList() {
         const badgeClass = policy.status === 'declined' ? 'badge-overdue' : policy.compliant ? 'badge-done' : policy.overdue ? 'badge-overdue' : 'badge-pending';
         return (
           <article className="policy-card" key={policy.id}>
-            <button className="policy-card-header" aria-expanded={isOpen} onClick={() => setExpandedId(isOpen ? null : policy.id)}>
+            <div className="policy-card-header">
               <div>
                 <div className="policy-title-row"><strong>{policy.title}</strong><span className="badge badge-mandatory">MANDATORY</span></div>
                 <div className="policy-meta">Version {policy.version} | {policy.requires_gate ? 'Required at sign-in' : 'Assigned policy'}</div>
               </div>
-              <span className={`badge ${badgeClass}`}>{badgeLabel}</span>
-            </button>
-            {isOpen && <div className="policy-body">
+              <div className="policy-card-summary-actions">
+                <span className={`badge ${badgeClass}`}>{badgeLabel}</span>
+                <button
+                  type="button"
+                  className="btn-secondary policy-read-toggle"
+                  aria-expanded={isOpen}
+                  aria-controls={`policy-content-${policy.id}`}
+                  onClick={() => setExpandedId(isOpen ? null : policy.id)}
+                >
+                  {isOpen ? 'Hide policy' : 'Read full policy'}
+                </button>
+              </div>
+            </div>
+            {isOpen && <div id={`policy-content-${policy.id}`} className="policy-body">
               <div className="policy-reading-panel">{renderPolicyContent(policy.content)}</div>
               {!policy.compliant && !policy.requires_gate && <div><button className="btn-primary" onClick={() => handleAcknowledge(policy.id)}>I have read and understood this</button></div>}
               {policy.requires_gate && !policy.compliant && <p className="policy-meta">This policy is enforced at sign-in; use the Acceptable Use Policy prompt shown after login to respond.</p>}

@@ -99,8 +99,9 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  cursor: pointer;
 }
+.policy-card-summary-actions { align-items: flex-end; display: flex; flex-direction: column; gap: 10px; }
+.policy-read-toggle { font-size: 12px; padding: 7px 10px; }
 
 .policy-title-row {
   display: flex;
@@ -324,6 +325,7 @@ body {
   .brand { margin-bottom: 16px; }
   .main { padding: 28px 18px; }
   .policy-card-header, .section-heading { align-items: flex-start; }
+  .policy-card-summary-actions { align-items: flex-start; }
   .policy-title-row { align-items: flex-start; flex-direction: column; gap: 6px; }
 }
 
