@@ -438,12 +438,6 @@ async function seedRbacContent() {
   if (await isApplied(version)) return;
 
   await db.transaction(async (query) => {
-    const existingPolicyCount = await query('SELECT COUNT(*)::int AS n FROM policies');
-    if (existingPolicyCount.rows[0].n > 0) {
-      await markApplied(query, version);
-      return;
-    }
-
     for (const [title, content, roleKey] of RBAC_POLICIES) {
       const inserted = await query(
         `INSERT INTO policies (title, content, requires_gate)
