@@ -8,7 +8,7 @@ SinglePoint was built following a cybersecurity risk assessment conducted on Sal
 
 This project is built for **IE3072 - Information Security Policy and Management**, SLIIT.
 
-## Team — Group E3072_021
+## Team - Group E3072_021
 
 | Module |
 |---|
@@ -73,14 +73,14 @@ The API listens on port 4000 by default. The frontend uses `http://localhost:400
 
 The frontend is published to GitHub Pages at `https://mishen-bma.github.io/singlepoint-app/`, and the API is hosted separately (for example on Render), since Pages only serves static files.
 
-### Frontend — GitHub Pages
+### Frontend - GitHub Pages
 
 - [.github/workflows/pages-build-deploy.yml](.github/workflows/pages-build-deploy.yml) builds `frontend/` with Vite and publishes `frontend/dist` via GitHub's official Pages actions whenever `main` changes.
 - In the repository's **Settings → Pages**, set **Source** to **GitHub Actions**.
 - The workflow builds with `VITE_BASE_PATH=/singlepoint-app/` so asset URLs match the Pages subpath. Set a repository **variable** (not secret) named `VITE_API_URL` under **Settings → Secrets and variables → Actions → Variables**, pointing at the deployed API, e.g. `https://<your-render-service>.onrender.com/api`.
 - After the first successful deploy, consider setting the published URL in **Settings → General → About → Website**.
 
-### Backend — Render (or any Node host)
+### Backend - Render (or any Node host)
 
 - [render.yaml](render.yaml) is a Render Blueprint for a free Node web service (`npm ci` / `npm start`). Non-sensitive variables (`NODE_ENV`, `PGSSLMODE`, `FRONTEND_ORIGIN`) are defined inline; `DATABASE_URL` and `JWT_SECRET` are declared with `sync: false` so Render prompts you to enter real values in its dashboard instead of storing them in source control.
 - Point `DATABASE_URL` at a managed PostgreSQL database (e.g. Supabase's session pooler connection string) rather than Render's free Postgres, which expires after 30 days.
