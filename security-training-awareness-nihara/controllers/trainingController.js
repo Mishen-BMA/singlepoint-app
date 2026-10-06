@@ -95,14 +95,14 @@ async function deleteModule(req, res) {
 async function saveQuizQuestion(req, res) {
   const moduleId = Number(req.params.id);
   const questionId = req.params.questionId ? Number(req.params.questionId) : null;
-  const { question, options, correctIndex } = req.body;
+  const { question, options, correctIndex, explanation } = req.body;
   if (!Number.isInteger(moduleId) || moduleId < 1 || (questionId !== null && (!Number.isInteger(questionId) || questionId < 1)) || !validateQuizQuestion({ question, options, correctIndex })) {
     return res.status(400).json({ error: 'Provide a question, 2-6 options, and a valid correct option index' });
   }
   try {
     const saved = questionId
-      ? await updateQuizQuestion(moduleId, questionId, { question: question.trim(), options, correctIndex: Number(correctIndex) })
-      : await createQuizQuestion(moduleId, { question: question.trim(), options, correctIndex: Number(correctIndex) });
+  ? await updateQuizQuestion(moduleId, questionId, { question: question.trim(), options, correctIndex: Number(correctIndex), explanation: explanation ? String(explanation).trim() : null })
+  : await createQuizQuestion(moduleId, { question: question.trim(), options, correctIndex: Number(correctIndex), explanation: explanation ? String(explanation).trim() : null });
     if (!saved) return res.status(404).json({ error: 'Quiz question not found' });
     res.status(questionId ? 200 : 201).json(saved);
   } catch (error) {
@@ -250,23 +250,25 @@ async function submitQuiz(req, res) {
     if (!(await isModuleAccessible(req.user, id))) {
       return res.status(404).json({ error: 'Module not found' });
     }
-    const r = await db.query(
-      'SELECT id, correct_index FROM quiz_questions WHERE module_id = $1', [id]);
+        const r = await db.query(
+      'SELECT id, question, correct_index, explanation FROM quiz_questions WHERE module_id = $1 ORDER BY id', [id]);
     if (r.rows.length === 0) return res.status(404).json({ error: 'No quiz for this module' });
 
     let score = 0;
+    const review = [];
     for (const q of r.rows) {
-      if (Number(answers[q.id]) === q.correct_index) score++;
+      if (Number(answers[q.id]) === q.correct_index) {
+        score++;
+      } else {
+        review.push({
+          questionId: q.id,
+          question: q.question,
+          explanation: q.explanation || 'Review the lesson section related to this question.'
+        });
+      }
     }
-    const total = r.rows.length;
-    const passed = score / total >= PASS_MARK;
 
-    await db.query(
-      `INSERT INTO quiz_attempts (user_id, module_id, score, total, passed)
-       VALUES ($1,$2,$3,$4,$5)`,
-      [req.user.id, id, score, total, passed]);
-
-    res.json({ score, total, passed });
+    res.json({ score, total, passed, review });
   } catch (e) {
     console.error(e.message);
     res.status(500).json({ error: 'Server error' });

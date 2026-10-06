@@ -72,6 +72,16 @@ async function initializeTrainingTables() {
   await db.query('UPDATE training_modules SET updated_at = created_at WHERE updated_at IS NULL');
   await db.query("UPDATE training_modules SET target_roles = 'manager,admin' WHERE title = 'How to Report an Incident' AND target_roles = ''");
 
+    const quizCols = db.dialect === 'sqlite'
+    ? await db.query('PRAGMA table_info(quiz_questions)')
+    : await db.query(
+      'SELECT column_name FROM information_schema.columns WHERE table_name = $1',
+      ['quiz_questions']
+    );
+  if (!quizCols.rows.some((c) => (c.name || c.column_name) === 'explanation')) {
+    await db.query('ALTER TABLE quiz_questions ADD COLUMN explanation TEXT');
+  }
+
   await seedTrainingData();
 }
 
@@ -168,23 +178,23 @@ async function updateTrainingModule(id, { title, category, durationMin, content,
   return result.rows[0] || null;
 }
 
-async function createQuizQuestion(moduleId, { question, options, correctIndex }) {
+async function createQuizQuestion(moduleId, { question, options, correctIndex, explanation = null }) {
   const result = await db.query(
-    `INSERT INTO quiz_questions (module_id, question, options, correct_index)
-     VALUES ($1, $2, $3::jsonb, $4)
-     RETURNING id, module_id, question, options`,
-    [moduleId, question, JSON.stringify(options), correctIndex]
+    `INSERT INTO quiz_questions (module_id, question, options, correct_index, explanation)
+     VALUES ($1, $2, $3::jsonb, $4, $5)
+     RETURNING id, module_id, question, options, explanation`,
+    [moduleId, question, JSON.stringify(options), correctIndex, explanation]
   );
   return result.rows[0];
 }
 
-async function updateQuizQuestion(moduleId, questionId, { question, options, correctIndex }) {
+async function updateQuizQuestion(moduleId, questionId, { question, options, correctIndex, explanation = null }) {
   const result = await db.query(
     `UPDATE quiz_questions
-     SET question = $1, options = $2::jsonb, correct_index = $3
-     WHERE module_id = $4 AND id = $5
-     RETURNING id, module_id, question, options`,
-    [question, JSON.stringify(options), correctIndex, moduleId, questionId]
+     SET question = $1, options = $2::jsonb, correct_index = $3, explanation = $4
+     WHERE module_id = $5 AND id = $6
+     RETURNING id, module_id, question, options, explanation`,
+    [question, JSON.stringify(options), correctIndex, explanation, moduleId, questionId]
   );
   return result.rows[0] || null;
 }
